@@ -28,10 +28,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--questions_file', default='/scratche/home/apoorv/tempqa/data/questions/questions_position_held_small_1_paraphrases_shuffled.pickle', type=str,
-    help="Pickle file containing questions"
-)
-parser.add_argument(
     '--load_from', default='', type=str,
     help="Pretrained qa model checkpoint"
 )
@@ -61,8 +57,8 @@ parser.add_argument(
     help="Batch size."
 )
 parser.add_argument(
-    '--frozen', default=0, type=int,
-    help="Whether entity/time embeddings are frozen or not. Default unfrozen."
+    '--frozen', default=1, type=int,
+    help="Whether entity/time embeddings are frozen or not. Default frozen."
 )
 
 parser.add_argument(
@@ -76,11 +72,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--eval_split', default='valid', type=str,
+    help="Which split to validate on"
+)
+
+parser.add_argument(
     '--dataset_name', default='wikidata_small', type=str,
     help="Which dataset."
 )
-
-
 
 args = parser.parse_args()
 
@@ -88,17 +87,20 @@ args = parser.parse_args()
 # might want to compare predicted khot with answers khot
 # right now actual answers come from dataset.data[split][i]['answers']
 # which works for now
+# todo: eval batch size is fixed to 500 right now
 def eval(qa_model, dataset, split='valid', k=10):
     qa_model.eval()
+    print('Evaluating split', split)
     print('Evaluating with k = %d' % k)
     batch_size = 500
-    
-    if len(dataset.data[split]) < batch_size:
-        batch_size = len(dataset.data[split])
-    
+        
     topk_answers = []
     total_loss = 0
-    for i in tqdm(range(len(dataset.data[split]) // batch_size)):
+    for i in tqdm(range(len(dataset.data[split]) // batch_size + 1)):
+        # if size of split is multiple of batch size, we need this
+        # todo: is there a more elegant way?
+        if i * batch_size == len(dataset.data[split]):
+            break
         question_text, entities_times_padded, entities_times_padded_mask, answers_khot = dataset.get_batch(
         split=split,
         start_index=i*batch_size,
@@ -131,7 +133,6 @@ def eval(qa_model, dataset, split='valid', k=10):
         total += 1
 
     eval_accuracy = hits_at_k/total
-    
     print('Hits at %d: ' % k, round(eval_accuracy, 3))
     
     for key, value in question_types_count.items():
@@ -211,7 +212,7 @@ else:
 qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
-    eval(qa_model, dataset, k = args.eval_k)
+    eval(qa_model, dataset, split=args.eval_split, k = args.eval_k)
     exit(0)
 
 train(qa_model, dataset, args)
