@@ -18,7 +18,7 @@ Install Temporal KGQA requirements
 conda install --file requirements.txt -c conda-forge
 ```
 
-Download the dataset from <dataset_link> and unzip to create data directory. Also create an empty model directory.
+Download the dataset and models from <dataset_link> and unzip to create data and models directories.
 
 To generate tkbc embeddings, you can run something like
 
