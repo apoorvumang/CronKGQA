@@ -22,7 +22,7 @@ Download pretrained models and extract in the models folder. You will need at le
 
 Finally you can run training of QA model using
 ```
-example
+CUDA_VISIBLE_DEVICES=5 python ./train_qa_model.py --save_to 'mymodel' --frozen 0 --eval_k 1 --max_epochs 500 --lr 0.00002 --batch_size 100 
 ```
 
 Note: You will need GPU support to load/train the model. If you get an error about not having GPU support, please install pytorch according to the CUDA version installed on the system. For eg. if you have CUDA 9.2
