@@ -1,4 +1,3 @@
-name: /scratche/home/apoorv/tkbc/tkbc_env
 channels:
   - pytorch
   - conda-forge

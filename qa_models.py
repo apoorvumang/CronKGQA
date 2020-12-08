@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 import numpy as np
-from models import TComplEx
+from tkbc.models import TComplEx
 from sentence_transformers import SentenceTransformer
 
 

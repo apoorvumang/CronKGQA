@@ -13,7 +13,6 @@ import numpy as np
 import torch
 from models import TKBCModel
 
-
 DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
 
 class TemporalDataset(object):

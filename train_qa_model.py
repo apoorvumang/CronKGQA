@@ -14,7 +14,6 @@ from tqdm import tqdm
 from utils import loadTkbcModel
 from collections import defaultdict
 
-
 parser = argparse.ArgumentParser(
     description="Temporal KGQA"
 )
@@ -165,7 +164,7 @@ def save_model(qa_model, filename):
         filename = 'models/temp.ckpt'
         print('Save filename not specified. Using %s' % filename)
     else:
-        filename = 'models/' + filename
+        filename = 'models/' + filename + '.ckpt'
     print('Saving model to', filename)
     torch.save(qa_model.state_dict(), filename)
     print('Saved model to ', filename)
@@ -181,9 +180,10 @@ else:
     exit(0)
 
 if args.load_from != '':
-    print('Loading model from', args.load_from)
-    qa_model.load_state_dict(torch.load(args.load_from))
-    print('Loaded qa model from ', args.load_from)
+    filename = 'models/' + args.load_from + '.ckpt'
+    print('Loading model from', filename)
+    qa_model.load_state_dict(torch.load(filename))
+    print('Loaded qa model from ', filename)
 else:
     print('Not loading from checkpoint. Starting fresh!')
 

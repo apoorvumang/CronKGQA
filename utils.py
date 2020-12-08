@@ -2,16 +2,18 @@ import pickle
 import random
 import torch
 import numpy as np
-from datasets import TemporalDataset
-from models import ComplEx, TComplEx, TNTComplEx
+from tkbc.models import TComplEx
 
 
 def loadTkbcModel(tkbc_model_file, rank=256, dataset_name='wikidata_small'):
-    dataset = TemporalDataset(dataset_name)
-    sizes = dataset.get_shape()
-    tkbc_model = TComplEx(sizes, rank, no_time_emb=False)
     print('Loading tkbc model from', tkbc_model_file)
-    tkbc_model.load_state_dict(torch.load(tkbc_model_file))
+    x = torch.load(tkbc_model_file)
+    num_ent = x['embeddings.0.weight'].shape[0]
+    num_rel = x['embeddings.1.weight'].shape[0]
+    num_ts = x['embeddings.2.weight'].shape[0]
+    sizes = [num_ent, num_rel, num_ent, num_ts]
+    tkbc_model = TComplEx(sizes, rank, no_time_emb=False)
+    tkbc_model.load_state_dict(x)
     tkbc_model.cuda()
     print('Loaded tkbc model')
     return tkbc_model
