@@ -15,9 +15,12 @@ from tqdm import tqdm
 
 class QA_Dataset(object):
     def __init__(self, 
-                filename='/scratche/home/apoorv/tempqa/data/questions/questions_position_held_small_with_paraphrases_v2_shuffled.pickle'):
+                dataset_name = 'wikidata_small'):
         num_valid = 5000
         num_test = 5000
+        filename = 'data/{dataset_name}/questions/questions.pickle'.format(
+            dataset_name=dataset_name
+        )
         questions = pickle.load(open(filename, 'rb'))
         self.all_dicts = utils.getAllDicts()
         self.valid = questions[:num_valid]
@@ -145,8 +148,8 @@ class QA_Dataset(object):
 
 
 class QA_Dataset_model1(QA_Dataset):
-    def __init__(self, dataset_file):
-        super().__init__(dataset_file)
+    def __init__(self, dataset_name):
+        super().__init__(dataset_name)
 
     def process_data(self, data):
         question_text = []

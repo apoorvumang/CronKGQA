@@ -70,6 +70,18 @@ parser.add_argument(
     help="Learning rate"
 )
 
+parser.add_argument(
+    '--mode', default='train', type=str,
+    help="Whether train or eval."
+)
+
+parser.add_argument(
+    '--dataset_name', default='wikidata_small', type=str,
+    help="Which dataset."
+)
+
+
+
 args = parser.parse_args()
 
 # todo: this function may not be properly implemented
@@ -155,32 +167,41 @@ def train(qa_model, dataset, args):
             eval_score = eval(qa_model, dataset, k = args.eval_k)
             if eval_score > max_eval_score:
                 print('Valid score increased')
-                save_model(qa_model, args.save_to)
+                filename = args.save_to
+                if filename == '':
+                    print('Save file name not specified!')
+                    filename = 'temp'
+                save_file_name = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
+                    dataset_name=args.dataset_name,
+                    model_file = filename
+                )
+                save_model(qa_model, save_file_name)
                 max_eval_score = eval_score
 
 
 def save_model(qa_model, filename):
-    if filename == '':
-        filename = 'models/temp.ckpt'
-        print('Save filename not specified. Using %s' % filename)
-    else:
-        filename = 'models/' + filename + '.ckpt'
     print('Saving model to', filename)
     torch.save(qa_model.state_dict(), filename)
     print('Saved model to ', filename)
     return
 
 
-tkbc_model = loadTkbcModel('models/' + args.tkbc_model_file)
+tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file}'.format(
+    dataset_name = args.dataset_name, tkbc_model_file=args.tkbc_model_file
+))
+
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
-    dataset = QA_Dataset_model1(args.questions_file)
+    dataset = QA_Dataset_model1(dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
 
 if args.load_from != '':
-    filename = 'models/' + args.load_from + '.ckpt'
+    filename = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
+        dataset_name=args.dataset_name,
+        model_file=args.load_from
+    )
     print('Loading model from', filename)
     qa_model.load_state_dict(torch.load(filename))
     print('Loaded qa model from ', filename)
@@ -188,6 +209,10 @@ else:
     print('Not loading from checkpoint. Starting fresh!')
 
 qa_model = qa_model.cuda()
+
+if args.mode == 'eval':
+    eval(qa_model, dataset, k = args.eval_k)
+    exit(0)
 
 train(qa_model, dataset, args)
 

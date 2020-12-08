@@ -13,21 +13,22 @@ import numpy as np
 
 from collections import defaultdict
 
-DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
+
+DATA_PATH = '../data/wikidata_small/kg/tkbc_processed_data/'
+
+# DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
 
 
 def get_be(begin, end):
-    begin = re.search(r'([+-]\d+)-(\d+)-(\d+)', begin)
-    end = re.search(r'([+-]\d+)-(\d+)-(\d+)', end)
     if begin is None:
         begin = (-math.inf, 0, 0)
     else:
-        begin = (int(begin.group(1)), 0, 0)
+        begin = (int(begin), 0, 0)
 
     if end is None:
         end = (math.inf, 0, 0)
     else:
-        end = (int(end.group(1)), 0, 0)
+        end = (int(end), 0, 0)
 
     return begin, end
 
@@ -53,7 +54,6 @@ def prepare_dataset_rels(path, name):
             lhs, rel, rhs, begin, end = v
 
             begin, end = get_be(begin, end)
-
             timestamps.add(begin)
             timestamps.add(end)
             entities.add(lhs)
@@ -68,7 +68,9 @@ def prepare_dataset_rels(path, name):
     relations_to_id = {x: i for (i, x) in enumerate(sorted(relations))}
 
     # we need to sort timestamps and associate them to actual dates
-    all_ts = sorted(timestamps)[1:-1]
+    
+    # all_ts = sorted(timestamps)[1:-1]
+    all_ts = sorted(timestamps)
     timestamps_to_id = {x: i for (i, x) in enumerate(all_ts)}
     # print(timestamps_to_id)
 
@@ -168,16 +170,21 @@ def prepare_dataset_rels(path, name):
 
 
 if __name__ == "__main__":
-    datasets = ['wikidata']
+    datasets = ['wikidata_small']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:
+            dataset_location = '../data/wikidata_small/kg/'
             prepare_dataset_rels(
-                os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)), 'src_data', d
-                ),
+                dataset_location,
                 d
             )
+            # prepare_dataset_rels(
+            #     os.path.join(
+            #         os.path.dirname(os.path.realpath(__file__)), 'src_data', d
+            #     ),
+            #     d
+            # )
         except OSError as e:
             if e.errno == errno.EEXIST:
                 print(e)

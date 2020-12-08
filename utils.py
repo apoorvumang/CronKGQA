@@ -5,19 +5,19 @@ import numpy as np
 from tkbc.models import TComplEx
 
 
-def loadTkbcModel(tkbc_model_file, rank=256, dataset_name='wikidata_small'):
+def loadTkbcModel(tkbc_model_file):
     print('Loading tkbc model from', tkbc_model_file)
     x = torch.load(tkbc_model_file)
     num_ent = x['embeddings.0.weight'].shape[0]
     num_rel = x['embeddings.1.weight'].shape[0]
     num_ts = x['embeddings.2.weight'].shape[0]
     sizes = [num_ent, num_rel, num_ent, num_ts]
+    rank = x['embeddings.0.weight'].shape[1] // 2 # complex has 2*rank embedding size
     tkbc_model = TComplEx(sizes, rank, no_time_emb=False)
     tkbc_model.load_state_dict(x)
     tkbc_model.cuda()
     print('Loaded tkbc model')
     return tkbc_model
-
 
 def dataIdsToLiterals(d, all_dicts):
     new_datapoint = []
@@ -32,8 +32,11 @@ def dataIdsToLiterals(d, all_dicts):
     new_datapoint.append(id2ts[d[4]])
     return new_datapoint
 
-def getAllDicts():
-    base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
+def getAllDicts(dataset_name='wikidata_small'):
+    # base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
+    base_path = 'data/{dataset_name}/kg/tkbc_processed_data/{dataset_name}/'.format(
+        dataset_name=dataset_name
+    )
     dicts = {}
     for f in ['ent_id', 'rel_id', 'ts_id']:
         in_file = open(str(base_path + f), 'rb')
@@ -41,9 +44,12 @@ def getAllDicts():
     rel2id = dicts['rel_id']
     ent2id = dicts['ent_id']
     ts2id = dicts['ts_id']
-    file_ent = '/scratche/home/apoorv/tempqa/data/temporal_small/entity2wd_id.txt'
-    file_rel = '/scratche/home/apoorv/tempqa/data/temporal_small/relation2wd_id.txt'
-
+    file_ent = 'data/{dataset_name}/kg/wd_id2entity_text.txt'.format(
+        dataset_name=dataset_name
+    )
+    file_rel = 'data/{dataset_name}/kg/wd_id2relation_text.txt'.format(
+        dataset_name=dataset_name
+    )
     def readDict(filename):
         f = open(filename, 'r')
         d = {}
