@@ -14,21 +14,30 @@ import numpy as np
 from collections import defaultdict
 
 
-DATA_PATH = 'data/wikidata_small/kg/tkbc_processed_data/'
+DATA_PATH = 'data/wikidata_big/kg/tkbc_processed_data/'
 
 # DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
 
 
+def getYear(s):
+    try:
+        return int(s[1:5])
+    except:
+        return None
+
+
 def get_be(begin, end):
+    begin = getYear(begin)
+    end = getYear(end)
     if begin is None:
-        begin = (-math.inf, 0, 0)
+        begin = (0, 0, 0) # min previously got from data lul
     else:
-        begin = (int(begin), 0, 0)
+        begin = (begin, 0, 0)
 
     if end is None:
-        end = (math.inf, 0, 0)
+        end = (5374, 0, 0) # max previously got from data lul
     else:
-        end = (int(end), 0, 0)
+        end = (end, 0, 0)
 
     return begin, end
 
@@ -176,11 +185,11 @@ def prepare_dataset_rels(path, name):
 
 
 if __name__ == "__main__":
-    datasets = ['wikidata_small']
+    datasets = ['wikidata_big']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:
-            dataset_location = '../data/wikidata_small/kg/'
+            dataset_location = 'data/wikidata_big/kg/'
             prepare_dataset_rels(
                 dataset_location,
                 d

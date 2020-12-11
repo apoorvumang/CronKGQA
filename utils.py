@@ -11,6 +11,7 @@ def loadTkbcModel(tkbc_model_file):
     num_ent = x['embeddings.0.weight'].shape[0]
     num_rel = x['embeddings.1.weight'].shape[0]
     num_ts = x['embeddings.2.weight'].shape[0]
+    print('Number ent,rel,ts from loaded model:', num_ent, num_rel, num_ts)
     sizes = [num_ent, num_rel, num_ent, num_ts]
     rank = x['embeddings.0.weight'].shape[1] // 2 # complex has 2*rank embedding size
     tkbc_model = TComplEx(sizes, rank, no_time_emb=False)

@@ -121,10 +121,6 @@ def eval(qa_model, dataset, split='valid', k=10):
         actual_answers = question['answers']
         question_template = question['template']
         predicted = topk_answers[i]
-        # if question_template == 'Who was the {tail} in {time}?':
-        #     print(question)
-        #     print(predicted)
-        #     exit(0)
         if len(actual_answers.intersection(set(predicted))) > 0:
             question_types_count[question_template].append(1)
             hits_at_k += 1

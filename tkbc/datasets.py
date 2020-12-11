@@ -13,10 +13,13 @@ import numpy as np
 import torch
 from models import TKBCModel
 
-DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
+# todo: this is hardcoded for wikidata_small
+# need to add dataset_name argument for learner.py and use that
+
 
 class TemporalDataset(object):
     def __init__(self, name: str):
+        DATA_PATH = 'data/{dataset_name}/kg/tkbc_processed_data/'.format(dataset_name=name)
         self.root = Path(DATA_PATH) / name
 
         self.data = {}

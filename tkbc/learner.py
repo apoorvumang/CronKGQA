@@ -30,6 +30,10 @@ parser.add_argument(
     help="Number of epochs."
 )
 parser.add_argument(
+    '--save_to', default='', type=str,
+    help="Where to save trained model"
+)
+parser.add_argument(
     '--valid_freq', default=5, type=int,
     help="Number of epochs between each valid."
 )
@@ -77,6 +81,14 @@ opt = optim.Adagrad(model.parameters(), lr=args.learning_rate)
 emb_reg = N3(args.emb_reg)
 time_reg = Lambda3(args.time_reg)
 
+best_valid_score = 0.0
+
+def save_model(model, filename):
+    print('Saving model to', filename)
+    torch.save(model.state_dict(), filename)
+    print('Saved model to ', filename)
+    return
+
 for epoch in range(args.max_epochs):
     examples = torch.from_numpy(
         dataset.get_train().astype('int64')
@@ -118,6 +130,17 @@ for epoch in range(args.max_epochs):
             print("valid: ", valid)
             print("test: ", test)
             print("train: ", train)
+            valid_score = valid['MRR_full_time']
+            if valid_score > best_valid_score:
+                best_valid_score = valid_score
+                print('Valid score increased, saving model')
+                if args.save_to == '':
+                    print('No save file specified. Skipping saving.')
+                else:
+                    filename = 'models/{dataset_name}/kg_embeddings/{model_file}'.format(
+                        dataset_name = args.dataset, model_file=args.save_to
+                    )
+                    save_model(model, filename)
 
         else:
             valid, test, train = [

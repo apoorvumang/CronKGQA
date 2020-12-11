@@ -5,7 +5,6 @@ import numpy as np
 from tkbc.models import TComplEx
 from sentence_transformers import SentenceTransformer
 
-
 # training data: questions
 # model:
 # 1. tkbc model embeddings (may or may not be frozen)
@@ -15,10 +14,7 @@ from sentence_transformers import SentenceTransformer
 # 5. average output embeddings of transformer or take last token embedding?
 # 6. linear projection of this embedding to tkbc embedding dimension
 # 7. score with all possible entities/times and sigmoid
-# or
-# 7. directly project to dimension num_entity + num_time and sigmoid
 # 8. BCE loss (multiple correct possible)
-
 
 class QA_model(nn.Module):
     def __init__(self, tkbc_model, args):
@@ -34,9 +30,6 @@ class QA_model(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
 
         self.project_sentence_to_transformer_dim = nn.Linear(self.sentence_embedding_dim, self.transformer_dim)
-        # not needed:
-        # self.project_tkbc_to_transformer_dim = nn.Linear(self.tkbc_embedding_dim, self.transformer_dim)
-        
         # creating combined embedding of time and entities (entities come first)
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
         num_times = tkbc_model.embeddings[2].weight.shape[0]
@@ -69,8 +62,6 @@ class QA_model(nn.Module):
         output = torch.transpose(output, 0, 1)
         # summing token embeddings
         output = torch.sum(output, dim=1)
-        # now we can either project output to final dim, or we can take dot-product with
-        # entity/time embedding weight matrix
         scores = torch.matmul(output, self.entity_time_embedding.weight.data.T)
 #         scores = self.final_linear(output)
         # scores = torch.sigmoid(scores)
