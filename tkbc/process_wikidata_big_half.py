@@ -14,11 +14,9 @@ import numpy as np
 from collections import defaultdict
 
 
-DATA_PATH = 'data/wikidata_big/kg/tkbc_processed_data/'
+DATA_PATH = 'data/wikidata_big_half/kg/tkbc_processed_data/'
 
 # DATA_PATH = pkg_resources.resource_filename('tkbc', 'data/')
-
-
 
 def get_be(begin, end):
     if begin is None:
@@ -45,20 +43,32 @@ def prepare_dataset_rels(path, name):
     Also create to_skip_lhs / to_skip_rhs for filtered metrics and
     rel_id / ent_id for analysis.
     """
+
+    # to get sets of entities, relations, timestamps
+    # we need to use full dataset, not half
+
+    path_for_full = path.replace('_half', '')
+
     files = ['train', 'valid', 'test']
+
     entities, relations, timestamps = set(), set(), set()
+
+    # using files from full here
+    # replaced path with path_for_full
     for f in files:
-        file_path = os.path.join(path, f)
+        file_path = os.path.join(path_for_full, f)
         to_read = open(file_path, 'r')
         for line in to_read.readlines():
             v = line.strip().split('\t')
             lhs, rel, rhs, begin, end = v
+
             begin, end = get_be(begin, end)
             timestamps.add(begin)
             timestamps.add(end)
             entities.add(lhs)
             entities.add(rhs)   
             relations.add(rel)
+
         to_read.close()
     timestamps_int = set()
     for t in timestamps:
@@ -175,11 +185,11 @@ def prepare_dataset_rels(path, name):
 
 
 if __name__ == "__main__":
-    datasets = ['wikidata_big']
+    datasets = ['wikidata_big_half']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:
-            dataset_location = 'data/wikidata_big/kg/'
+            dataset_location = 'data/wikidata_big_half/kg/'
             prepare_dataset_rels(
                 dataset_location,
                 d
