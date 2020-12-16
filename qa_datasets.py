@@ -11,6 +11,7 @@ import torch
 import utils
 from tqdm import tqdm
 from transformers import RobertaTokenizer
+from transformers import DistilBertTokenizer
 import random
 from torch.utils.data import Dataset, DataLoader
 
@@ -27,33 +28,16 @@ class QA_Dataset(Dataset):
         )
         questions = pickle.load(open(filename, 'rb'))
         # questions = self.loadJSON(filename)
-        self.tokenizer_class = RobertaTokenizer
-        self.pretrained_weights = 'roberta-base'
-        self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
+        # self.tokenizer_class = RobertaTokenizer
+        # self.pretrained_weights = 'roberta-base'
+        self.pretrained_weights = 'distilbert-base-uncased'
+        self.tokenizer_class = DistilBertTokenizer
+        # self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
+        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
         self.all_dicts = utils.getAllDicts(dataset_name)
         print('Total questions = ', len(questions))
         self.data = questions
         # self.data = self.data[:1000]
-
-    def pad_sequence(self, arr, max_len=128):
-        num_to_add = max_len - len(arr)
-        for _ in range(num_to_add):
-            arr.append('<pad>')
-        return arr
-
-    def tokenize_question(self, question):
-        question = "<s> " + question + " </s>"
-        question_tokenized = self.tokenizer.tokenize(question)
-        question_tokenized = self.pad_sequence(question_tokenized, 128)
-        question_tokenized = torch.tensor(self.tokenizer.encode(question_tokenized, add_special_tokens=False))
-        attention_mask = []
-        for q in question_tokenized:
-            # 1 means padding token
-            if q == 1:
-                attention_mask.append(0)
-            else:
-                attention_mask.append(1)
-        return question_tokenized, torch.tensor(attention_mask, dtype=torch.long)
 
     def getEntitiesLocations(self, question):
         question_text = question['question']
@@ -165,7 +149,7 @@ class QA_Dataset(Dataset):
 class QA_Dataset_model1(QA_Dataset):
     def __init__(self, split, dataset_name):
         super().__init__(split, dataset_name)
-        print('Preparing data.')
+        print('Preparing data for split %s' % split)
         self.prepared_data = self.prepare_data(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
@@ -198,16 +182,25 @@ class QA_Dataset_model1(QA_Dataset):
                 'entity_time_ids': entity_time_ids, 
                 'answers_arr': answers_arr}
 
-
     def __getitem__(self, index):
         data = self.prepared_data
         question_text = data['question_text'][index]
         entity_time_ids = data['entity_time_ids'][index]
         answers_arr = data['answers_arr'][index]
-        question_tokenized, question_attention_mask = self.tokenize_question(question_text)
+
         answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        # max 5 entities in question?
         entities_times_padded, entities_times_padded_mask = self.padding_tensor([entity_time_ids], 5)
         entities_times_padded = entities_times_padded.squeeze()
         entities_times_padded_mask = entities_times_padded_mask.squeeze()
-        return question_tokenized, question_attention_mask, entities_times_padded, entities_times_padded_mask, answers_khot
+        return question_text, entities_times_padded, entities_times_padded_mask, answers_khot
+
+    def _collate_fn(self, items):
+        entities_times_padded = torch.stack([item[1] for item in items])
+        entities_times_padded_mask = torch.stack([item[2] for item in items])
+        answers_khot = torch.stack([item[3] for item in items])
+        batch_sentences = [item[0] for item in items]
+        b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
+        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot
+
 

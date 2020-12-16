@@ -14,6 +14,7 @@ from tqdm import tqdm
 from utils import loadTkbcModel
 from collections import defaultdict
 
+
 parser = argparse.ArgumentParser(
     description="Temporal KGQA"
 )
@@ -87,14 +88,15 @@ args = parser.parse_args()
 # might want to compare predicted khot with answers khot
 # right now actual answers come from dataset.data[split][i]['answers']
 # which works for now
-# todo: eval batch size is fixed to 500 right now
+# todo: eval batch size is fixed to 128 right now
 def eval(qa_model, dataset, split='valid', k=10):
     num_workers = 4
     qa_model.eval()
     print('Evaluating split', split)
     print('Evaluating with k = %d' % k)
     batch_size = 128
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, 
+                            num_workers=num_workers, collate_fn=dataset._collate_fn)
     topk_answers = []
     total_loss = 0
     loader = tqdm(data_loader, total=len(data_loader), unit="batches")
@@ -149,7 +151,8 @@ def train(qa_model, dataset, valid_dataset, args):
     optimizer = torch.optim.Adam(qa_model.parameters(), lr=args.lr)
     optimizer.zero_grad()
     batch_size = args.batch_size
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                            collate_fn=dataset._collate_fn)
     print('Starting training')
     max_eval_score = 0
     

@@ -5,6 +5,7 @@ import numpy as np
 from tkbc.models import TComplEx
 from sentence_transformers import SentenceTransformer
 from transformers import RobertaModel
+from transformers import DistilBertModel
 
 # training data: questions
 # model:
@@ -22,8 +23,8 @@ class QA_model(nn.Module):
         super().__init__()
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
-        self.roberta_pretrained_weights = 'roberta-base'
-        self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
+        self.pretrained_weights = 'distilbert-base-uncased'
+        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
         for param in self.roberta_model.parameters():
             param.requires_grad = False
         # transformer
