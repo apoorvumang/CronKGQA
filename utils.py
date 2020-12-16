@@ -33,7 +33,7 @@ def dataIdsToLiterals(d, all_dicts):
     new_datapoint.append(id2ts[d[4]])
     return new_datapoint
 
-def getAllDicts(dataset_name='wikidata_small'):
+def getAllDicts(dataset_name):
     # base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
     base_path = 'data/{dataset_name}/kg/tkbc_processed_data/{dataset_name}/'.format(
         dataset_name=dataset_name
@@ -56,6 +56,8 @@ def getAllDicts(dataset_name='wikidata_small'):
         d = {}
         for line in f:
             line = line.strip().split('\t')
+            if len(line) == 1:
+                line.append('') # in case literal was blank or whitespace
             d[line[0]] = line[1]
         f.close()
         return d

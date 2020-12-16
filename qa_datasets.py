@@ -3,35 +3,57 @@ import pkg_resources
 import pickle
 from collections import defaultdict
 from typing import Dict, Tuple, List
-
+import json
 
 import numpy as np
 import torch
 # from qa_models import QA_model
 import utils
 from tqdm import tqdm
+from transformers import RobertaTokenizer
+import random
+from torch.utils.data import Dataset, DataLoader
+
 # warning: padding id 0 is being used, can have issue like in Tucker
 # however since so many entities (and timestamps?), it may not pose problem
 
-class QA_Dataset(object):
+class QA_Dataset(Dataset):
     def __init__(self, 
-                dataset_name = 'wikidata_small'):
-        num_valid = 5000
-        num_test = 5000
-        filename = 'data/{dataset_name}/questions/questions.pickle'.format(
-            dataset_name=dataset_name
+                split,
+                dataset_name):
+        filename = 'data/{dataset_name}/questions/{split}.pickle'.format(
+            dataset_name=dataset_name,
+            split=split
         )
         questions = pickle.load(open(filename, 'rb'))
-        self.all_dicts = utils.getAllDicts()
-        self.valid = questions[:num_valid]
-        self.test = questions[num_valid: num_valid + num_test]
-        self.train = questions[num_valid + num_test :]
+        # questions = self.loadJSON(filename)
+        self.tokenizer_class = RobertaTokenizer
+        self.pretrained_weights = 'roberta-base'
+        self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
+        self.all_dicts = utils.getAllDicts(dataset_name)
         print('Total questions = ', len(questions))
+        self.data = questions
+        # self.data = self.data[:1000]
 
-        self.data = {}
-        self.data['valid'] = self.valid
-        self.data['train'] = self.train
-        self.data['test'] = self.test
+    def pad_sequence(self, arr, max_len=128):
+        num_to_add = max_len - len(arr)
+        for _ in range(num_to_add):
+            arr.append('<pad>')
+        return arr
+
+    def tokenize_question(self, question):
+        question = "<s> " + question + " </s>"
+        question_tokenized = self.tokenizer.tokenize(question)
+        question_tokenized = self.pad_sequence(question_tokenized, 128)
+        question_tokenized = torch.tensor(self.tokenizer.encode(question_tokenized, add_special_tokens=False))
+        attention_mask = []
+        for q in question_tokenized:
+            # 1 means padding token
+            if q == 1:
+                attention_mask.append(0)
+            else:
+                attention_mask.append(1)
+        return question_tokenized, torch.tensor(attention_mask, dtype=torch.long)
 
     def getEntitiesLocations(self, question):
         question_text = question['question']
@@ -70,13 +92,6 @@ class QA_Dataset(object):
             output.append(ent2id[e])
         return output
     
-    def idToEntTime(self, id):
-        type = self.getIdType(id)
-        if type == 'entity':
-            return self.all_dicts['id2ent'][id]
-        else:
-            return self.all_dicts['id2ts'][id]
-        
     def getIdType(self, id):
         if id < len(self.all_dicts['ent2id']):
             return 'entity'
@@ -121,13 +136,14 @@ class QA_Dataset(object):
     # while the position with the value of False will be unchanged.
     # 
     # so we want to pad with True
-    def padding_tensor(self, sequences):
+    def padding_tensor(self, sequences, max_len = -1):
         """
         :param sequences: list of tensors
         :return:
         """
         num = len(sequences)
-        max_len = max([s.size(0) for s in sequences])
+        if max_len == -1:
+            max_len = max([s.size(0) for s in sequences])
         out_dims = (num, max_len)
         out_tensor = sequences[0].data.new(*out_dims).fill_(0)
         # mask = sequences[0].data.new(*out_dims).fill_(0)
@@ -139,36 +155,36 @@ class QA_Dataset(object):
         return out_tensor, mask
     
     def toOneHot(self, indices, vec_len):
-        indices = torch.LongTensor(indices).cuda()
-        one_hot = torch.FloatTensor(vec_len).cuda()
+        indices = torch.LongTensor(indices)
+        one_hot = torch.FloatTensor(vec_len)
         one_hot.zero_()
         one_hot.scatter_(0, indices, 1)
         return one_hot
 
 
-
 class QA_Dataset_model1(QA_Dataset):
-    def __init__(self, dataset_name):
-        super().__init__(dataset_name)
+    def __init__(self, split, dataset_name):
+        super().__init__(split, dataset_name)
+        print('Preparing data.')
+        self.prepared_data = self.prepare_data(self.data)
+        self.num_total_entities = len(self.all_dicts['ent2id'])
+        self.num_total_times = len(self.all_dicts['ts2id'])
+        self.answer_vec_size = self.num_total_entities + self.num_total_times
 
-    def process_data(self, data):
+    def __len__(self):
+        return len(self.data)
+
+    def prepare_data(self, data):
+        # we want to prepare answers lists for each question
+        # then at batch prep time, we just stack these
+        # and use scatter 
         question_text = []
         entity_time_ids = []
-        
         num_total_entities = len(self.all_dicts['ent2id'])
-        num_total_times = len(self.all_dicts['ts2id'])
-        answers_khot = []
-
+        answers_arr = []
         for question in data:
-            question_text.append(question['paraphrases'][0])
-            # question_text.append(question['template']) # todo: this is incorrect
-            # et_id = []
-            # entity_ids = self.entitiesToIds(self.getOrderedEntities(question))
-            # time_ids = self.timesToIds(self.getOrderedTimes(question))
-            # # adding num_total_entities to each time id
-            # for i in range(len(time_ids)):
-            #     time_ids[i] += num_total_entities
-            # et_id = entity_ids + time_ids # todo: maybe we want ordering as is in question? here entities first, time 2nd
+            q_text = question['paraphrases'][0]
+            question_text.append(q_text)
             et_id = self.getOrderedEntityTimeIds(question)
             entity_time_ids.append(torch.tensor(et_id, dtype=torch.long))
             if question['answer_type'] == 'entity':
@@ -176,23 +192,22 @@ class QA_Dataset_model1(QA_Dataset):
             else:
                 # adding num_total_entities to each time id
                 answers = [x + num_total_entities for x in self.timesToIds(question['answers'])]
-            answers_khot.append(self.toOneHot(answers, num_total_entities + num_total_times))
+            answers_arr.append(answers)
+        # answers_arr = self.get_stacked_answers_long(answers_arr)
+        return {'question_text': question_text, 
+                'entity_time_ids': entity_time_ids, 
+                'answers_arr': answers_arr}
 
-        entities_times_padded, entities_times_padded_mask = self.padding_tensor(entity_time_ids)
-        answers_khot = torch.stack(answers_khot)
-        return question_text, entities_times_padded, entities_times_padded_mask, answers_khot
 
-    def get_batch(self, split='train', start_index=0, batch_size=50):
-        # just example
-        return self.process_data(self.data[split][start_index: start_index + batch_size])
-        
-    
-class QA_Dataset_EaE(QA_Dataset):
-    def __init__(self, dataset_file):
-        super().__init__(dataset_file)
+    def __getitem__(self, index):
+        data = self.prepared_data
+        question_text = data['question_text'][index]
+        entity_time_ids = data['entity_time_ids'][index]
+        answers_arr = data['answers_arr'][index]
+        question_tokenized, question_attention_mask = self.tokenize_question(question_text)
+        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        entities_times_padded, entities_times_padded_mask = self.padding_tensor([entity_time_ids], 5)
+        entities_times_padded = entities_times_padded.squeeze()
+        entities_times_padded_mask = entities_times_padded_mask.squeeze()
+        return question_tokenized, question_attention_mask, entities_times_padded, entities_times_padded_mask, answers_khot
 
-    def process_data(self, data):
-        # we want tokenized question
-        # we also want to know position of entity/time in tokenized question
-        # finally, we want khot answer
-        return

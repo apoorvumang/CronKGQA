@@ -4,6 +4,7 @@ from torch import nn
 import numpy as np
 from tkbc.models import TComplEx
 from sentence_transformers import SentenceTransformer
+from transformers import RobertaModel
 
 # training data: questions
 # model:
@@ -19,9 +20,12 @@ from sentence_transformers import SentenceTransformer
 class QA_model(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
-        self.st_model = SentenceTransformer('distilbert-base-nli-mean-tokens')
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
-        self.sentence_embedding_dim = 768 # hardwired from sentence_transformers?
+        self.sentence_embedding_dim = 768 # hardwired from roberta?
+        self.roberta_pretrained_weights = 'roberta-base'
+        self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
+        for param in self.roberta_model.parameters():
+            param.requires_grad = False
         # transformer
         self.transformer_dim = self.tkbc_embedding_dim # keeping same so no need to project embeddings
         self.nhead = 8
@@ -48,14 +52,24 @@ class QA_model(nn.Module):
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
-    def forward(self, question_text, entities_times_padded, entities_times_padded_mask):
+    def getQuestionEmbedding(self, question_tokenized, attention_mask):
+        roberta_last_hidden_states = self.roberta_model(question_tokenized, attention_mask=attention_mask)[0]
+        states = roberta_last_hidden_states.transpose(1,0)
+        cls_embedding = states[0]
+        question_embedding = cls_embedding
+        # question_embedding = torch.mean(roberta_last_hidden_states, dim=1)
+        return question_embedding
+
+    def forward(self, question_tokenized, question_attention_mask, 
+                entities_times_padded, entities_times_padded_mask):
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
-        question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
+        question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
+        # question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
         question_embedding = self.project_sentence_to_transformer_dim(question_embedding)
         question_embedding = question_embedding.unsqueeze(1)
         sequence = torch.cat([question_embedding, entity_time_embedding], dim=1)
         sequence = torch.transpose(sequence, 0, 1)
-        batch_size = len(question_text)
+        batch_size = entity_time_embedding.shape[0]
         false_vector = torch.zeros((batch_size, 1), dtype=torch.bool).cuda() # fills with True
         mask = torch.cat([false_vector, entities_times_padded_mask], dim=1)
         output = self.transformer_encoder(sequence, src_key_padding_mask=mask)
@@ -68,7 +82,7 @@ class QA_model(nn.Module):
         return scores
         
 
-class QA_model_EaE(nn.Module):
+class QA_model_KnowBERT(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
@@ -99,7 +113,8 @@ class QA_model_EaE(nn.Module):
         self.loss = nn.BCEWithLogitsLoss(reduction='mean')
         return
 
-    def forward(self, question_text, entities_times_padded, entities_times_padded_mask):
+    def forward(self, question_text, question_tokenized, question_attention_mask, 
+                entities_times_padded, entities_times_padded_mask):
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
         question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
         question_embedding = self.project_sentence_to_transformer_dim(question_embedding)

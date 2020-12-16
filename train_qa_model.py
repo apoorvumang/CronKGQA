@@ -8,7 +8,7 @@ import numpy as np
 
 from qa_models import QA_model
 from qa_datasets import QA_Dataset, QA_Dataset_model1
-
+from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
 from utils import loadTkbcModel
@@ -89,27 +89,32 @@ args = parser.parse_args()
 # which works for now
 # todo: eval batch size is fixed to 500 right now
 def eval(qa_model, dataset, split='valid', k=10):
+    num_workers = 4
     qa_model.eval()
     print('Evaluating split', split)
     print('Evaluating with k = %d' % k)
-    batch_size = 500
-        
+    batch_size = 128
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     topk_answers = []
     total_loss = 0
-    for i in tqdm(range(len(dataset.data[split]) // batch_size + 1)):
+    loader = tqdm(data_loader, total=len(data_loader), unit="batches")
+    for i_batch, a in enumerate(loader):
+        question_tokenized = a[0]
+        question_attention_mask = a[1]
+        entities_times_padded = a[2]
+        entities_times_padded_mask = a[3]
+        answers_khot = a[4]
         # if size of split is multiple of batch size, we need this
         # todo: is there a more elegant way?
-        if i * batch_size == len(dataset.data[split]):
+        if i_batch * batch_size == len(data_loader):
             break
-        question_text, entities_times_padded, entities_times_padded_mask, answers_khot = dataset.get_batch(
-        split=split,
-        start_index=i*batch_size,
-        batch_size=batch_size) 
-        scores = qa_model.forward(question_text, entities_times_padded.cuda(), entities_times_padded_mask.cuda())
+        scores = qa_model.forward(question_tokenized.cuda(), 
+                question_attention_mask.cuda(), entities_times_padded.cuda(), 
+                entities_times_padded_mask.cuda())
         for s in scores:
             pred = dataset.getAnswersFromScores(s, k=k)
             topk_answers.append(pred)
-        loss = qa_model.loss(scores, answers_khot)
+        loss = qa_model.loss(scores, answers_khot.cuda())
         total_loss += loss.item()
     print(split, 'loss: ', total_loss)
 
@@ -117,15 +122,16 @@ def eval(qa_model, dataset, split='valid', k=10):
     total = 0
     question_types_count = defaultdict(list)
 
-    for i, question in enumerate(dataset.data[split]):
+    for i, question in enumerate(dataset.data):
         actual_answers = question['answers']
-        question_template = question['template']
+        # question_template = question['template']
+        question_type = question['type']
         predicted = topk_answers[i]
-        if len(actual_answers.intersection(set(predicted))) > 0:
-            question_types_count[question_template].append(1)
+        if len(set(actual_answers).intersection(set(predicted))) > 0:
+            question_types_count[question_type].append(1)
             hits_at_k += 1
         else:
-            question_types_count[question_template].append(0)
+            question_types_count[question_type].append(0)
         total += 1
 
     eval_accuracy = hits_at_k/total
@@ -138,30 +144,43 @@ def eval(qa_model, dataset, split='valid', k=10):
     return eval_accuracy
 
 
-def train(qa_model, dataset, args):
+def train(qa_model, dataset, valid_dataset, args):
+    num_workers = 5
     optimizer = torch.optim.Adam(qa_model.parameters(), lr=args.lr)
     optimizer.zero_grad()
     batch_size = args.batch_size
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     print('Starting training')
     max_eval_score = 0
+    
     for epoch in range(args.max_epochs):
         qa_model.train()
         epoch_loss = 0
-        for i in tqdm(range(len(dataset.train)// batch_size)):
+        loader = tqdm(data_loader, total=len(data_loader), unit="batches")
+        running_loss = 0
+        for i_batch, a in enumerate(loader):
             qa_model.zero_grad()
-            question_text, entities_times_padded, entities_times_padded_mask, answers_khot = dataset.get_batch(
-                split='train',
-                start_index = i*batch_size,
-                batch_size=batch_size)
-            scores = qa_model.forward(question_text, entities_times_padded.cuda(), entities_times_padded_mask.cuda())
+            question_tokenized = a[0]
+            question_attention_mask = a[1]
+            entities_times_padded = a[2]
+            entities_times_padded_mask = a[3]
+            answers_khot = a[4]
+            scores = qa_model.forward(question_tokenized.cuda(), 
+                        question_attention_mask.cuda(), entities_times_padded.cuda(), 
+                        entities_times_padded_mask.cuda())
+
             loss = qa_model.loss(scores, answers_khot.cuda())
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-        print(epoch, '/', args.max_epochs, 'epoch loss', epoch_loss)
+            running_loss += loss.item()
+            loader.set_postfix(Loss=running_loss/((i_batch+1)*batch_size), Epoch=epoch)
+            loader.set_description('{}/{}'.format(epoch, args.max_epochs))
+            loader.update()
+
         if epoch % args.valid_freq == 0 and epoch > 0:
             print('starting eval')
-            eval_score = eval(qa_model, dataset, k = args.eval_k)
+            eval_score = eval(qa_model, valid_dataset, split=args.eval_split, k = args.eval_k)
             if eval_score > max_eval_score:
                 print('Valid score increased')
                 filename = args.save_to
@@ -189,7 +208,8 @@ tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file
 
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
-    dataset = QA_Dataset_model1(dataset_name=args.dataset_name)
+    dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
@@ -208,9 +228,10 @@ else:
 qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
-    eval(qa_model, dataset, split=args.eval_split, k = args.eval_k)
+    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+    eval(qa_model, valid_dataset, split=args.eval_split, k = args.eval_k)
     exit(0)
 
-train(qa_model, dataset, args)
+train(qa_model, dataset, valid_dataset, args)
 
 print('Training finished')

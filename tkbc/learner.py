@@ -34,6 +34,10 @@ parser.add_argument(
     help="Where to save trained model"
 )
 parser.add_argument(
+    '--load_from', default='', type=str,
+    help="Where to load model from"
+)
+parser.add_argument(
     '--valid_freq', default=5, type=int,
     help="Number of epochs between each valid."
 )
@@ -75,6 +79,13 @@ model = {
 }[args.model]
 model = model.cuda()
 
+if args.load_from != '':
+    filename = 'models/{dataset_name}/kg_embeddings/{model_file}'.format(
+                    dataset_name = args.dataset, model_file=args.load_from
+                )
+    print('Loading from ' + filename)
+    model.load_state_dict(torch.load(filename))
+    print('Loaded model.')
 
 opt = optim.Adagrad(model.parameters(), lr=args.learning_rate)
 
