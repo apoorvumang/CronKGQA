@@ -6,7 +6,7 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model
+from qa_models import QA_model, QA_model_KnowBERT
 from qa_datasets import QA_Dataset, QA_Dataset_model1
 from torch.utils.data import Dataset, DataLoader
 import utils
@@ -57,6 +57,13 @@ parser.add_argument(
     '--batch_size', default=512, type=int,
     help="Batch size."
 )
+
+parser.add_argument(
+    '--valid_batch_size', default=128, type=int,
+    help="Valid batch size."
+)
+
+
 parser.add_argument(
     '--frozen', default=1, type=int,
     help="Whether entity/time embeddings are frozen or not. Default frozen."
@@ -89,12 +96,11 @@ args = parser.parse_args()
 # right now actual answers come from dataset.data[split][i]['answers']
 # which works for now
 # todo: eval batch size is fixed to 128 right now
-def eval(qa_model, dataset, split='valid', k=10):
+def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     num_workers = 4
     qa_model.eval()
     print('Evaluating split', split)
     print('Evaluating with k = %d' % k)
-    batch_size = 128
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, 
                             num_workers=num_workers, collate_fn=dataset._collate_fn)
     topk_answers = []
@@ -126,8 +132,8 @@ def eval(qa_model, dataset, split='valid', k=10):
 
     for i, question in enumerate(dataset.data):
         actual_answers = question['answers']
-        # question_template = question['template']
-        question_type = question['type']
+        # question_type = question['type']
+        question_type = question['template']
         predicted = topk_answers[i]
         if len(set(actual_answers).intersection(set(predicted))) > 0:
             question_types_count[question_type].append(1)
@@ -181,9 +187,10 @@ def train(qa_model, dataset, valid_dataset, args):
             loader.set_description('{}/{}'.format(epoch, args.max_epochs))
             loader.update()
 
+        print('Epoch loss = ', epoch_loss)
         if epoch % args.valid_freq == 0 and epoch > 0:
             print('starting eval')
-            eval_score = eval(qa_model, valid_dataset, split=args.eval_split, k = args.eval_k)
+            eval_score = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
             if eval_score > max_eval_score:
                 print('Valid score increased')
                 filename = args.save_to
@@ -209,13 +216,25 @@ tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file
     dataset_name = args.dataset_name, tkbc_model_file=args.tkbc_model_file
 ))
 
+
+# utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
+# exit(0)
+
+
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
+    dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'knowbert':
+    qa_model = QA_model_KnowBERT(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
+
+print('Model is', args.model)
+
 
 if args.load_from != '':
     filename = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
@@ -232,7 +251,7 @@ qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
-    eval(qa_model, valid_dataset, split=args.eval_split, k = args.eval_k)
+    eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
 train(qa_model, dataset, valid_dataset, args)

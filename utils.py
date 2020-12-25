@@ -3,6 +3,7 @@ import random
 import torch
 import numpy as np
 from tkbc.models import TComplEx
+from tqdm import tqdm
 
 
 def loadTkbcModel(tkbc_model_file):
@@ -150,3 +151,34 @@ def predictHead(question, model, all_dicts, k=1):
         for x in row:
             topk_set.add(id2ent[x.item()])
     return topk_set
+
+
+def checkIfTkbcEmbeddingsTrained(tkbc_model, dataset_name, split='test'):
+    filename = 'data/{dataset_name}/questions/{split}.pickle'.format(
+            dataset_name=dataset_name,
+            split=split
+        )
+    questions = pickle.load(open(filename, 'rb'))
+    all_dicts = getAllDicts(dataset_name)
+    for question_type in ['predictHead', 'predictTime']:
+        correct_count = 0
+        total_count = 0
+        k = 1 # hit at k
+        for i in tqdm(range(len(questions))):
+            question_template = questions[i]['template']
+            if question_type == 'predictHead':
+                which_question_function = predictHead
+                target_template = 'Who was the {tail} in {time}?'
+            elif question_type == 'predictTime':
+                which_question_function = predictTime
+                target_template = 'When did {head} hold the position of {tail}?'            
+            if question_template != target_template:
+                continue
+            total_count += 1
+            id = i   
+            predicted = which_question_function(questions[id], tkbc_model, all_dicts, k)
+            intersection_set = set(questions[id]['answers']).intersection(predicted)
+            if len(intersection_set) > 0:
+                correct_count += 1
+        
+        print(question_type, correct_count, total_count, correct_count/total_count)
