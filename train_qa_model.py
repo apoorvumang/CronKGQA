@@ -101,7 +101,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     qa_model.eval()
     print('Evaluating split', split)
     print('Evaluating with k = %d' % k)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, 
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, 
                             num_workers=num_workers, collate_fn=dataset._collate_fn)
     topk_answers = []
     total_loss = 0
