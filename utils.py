@@ -5,13 +5,13 @@ import numpy as np
 from tkbc.models import TComplEx
 
 
-def loadTkbcModel(tkbc_model_file, rank=256, dataset_name='wikidata_small'):
-    rank=256
+def loadTkbcModel(tkbc_model_file, dataset_name='wikidata_small'):
     print('Loading tkbc model from', tkbc_model_file)
     x = torch.load(tkbc_model_file)
     num_ent = x['embeddings.0.weight'].shape[0]
     num_rel = x['embeddings.1.weight'].shape[0]
     num_ts = x['embeddings.2.weight'].shape[0]
+    rank = x['embeddings.0.weight'].shape[1] // 2 # complex has 2*rank embedding size
     sizes = [num_ent, num_rel, num_ent, num_ts]
     tkbc_model = TComplEx(sizes, rank, no_time_emb=False)
     tkbc_model.load_state_dict(x)
@@ -35,8 +35,8 @@ def dataIdsToLiterals(d, all_dicts):
 
 
 def getAllDicts():
-    # dataset_name = 'wikidata_small'
-    dataset_name = 'wikidata_big'
+    dataset_name = 'wikidata_small'
+    # dataset_name = 'wikidata_big'
     # base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
     base_path = 'data/{dataset_name}/kg/tkbc_processed_data/{dataset_name}/'.format(
         dataset_name=dataset_name

@@ -18,7 +18,7 @@ class QA_Dataset(object):
                 filename='/scratche/home/apoorv/tempqa/data/questions/questions_position_held_small_with_paraphrases_v2_shuffled.pickle'):
         num_valid = 5000
         num_test = 5000
-        folder_name = 'data/wikidata_big/questions/'
+        folder_name = 'data/wikidata_small/questions/'
         
         self.train = pickle.load(open(folder_name + 'train.pickle', 'rb'))
         self.valid = pickle.load(open(folder_name + 'valid.pickle', 'rb'))

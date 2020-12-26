@@ -28,6 +28,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--mode', default='train', type=str,
+    help="Which mode to use."
+)
+
+
+parser.add_argument(
     '--questions_file', default='/scratche/home/apoorv/tempqa/data/questions/questions_position_held_small_1_paraphrases_shuffled.pickle', type=str,
     help="Pickle file containing questions"
 )
@@ -35,6 +41,11 @@ parser.add_argument(
     '--load_from', default='', type=str,
     help="Pretrained qa model checkpoint"
 )
+parser.add_argument(
+    '--dataset', default='', type=str,
+    help="Pretrained qa model checkpoint"
+)
+
 
 parser.add_argument(
     '--save_to', default='', type=str,
@@ -173,8 +184,10 @@ def save_model(qa_model, filename):
     print('Saved model to ', filename)
     return
 
+model_file = 'models/wikidata_small/kg_embeddings/' +  args.tkbc_model_file
 
-tkbc_model = loadTkbcModel('models/' + args.tkbc_model_file)
+tkbc_model = loadTkbcModel(model_file)
+
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(args.questions_file)
