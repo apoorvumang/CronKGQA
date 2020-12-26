@@ -57,6 +57,8 @@ class QA_model(nn.Module):
 
     def forward(self, question_text, entities_times_padded, entities_times_padded_mask):
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
+        # print(question_text)
+        # exit(0)
         question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
         question_embedding = self.project_sentence_to_transformer_dim(question_embedding)
         question_embedding = question_embedding.unsqueeze(1)

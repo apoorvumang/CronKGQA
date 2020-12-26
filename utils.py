@@ -6,6 +6,7 @@ from tkbc.models import TComplEx
 
 
 def loadTkbcModel(tkbc_model_file, rank=256, dataset_name='wikidata_small'):
+    rank=256
     print('Loading tkbc model from', tkbc_model_file)
     x = torch.load(tkbc_model_file)
     num_ent = x['embeddings.0.weight'].shape[0]
@@ -32,8 +33,14 @@ def dataIdsToLiterals(d, all_dicts):
     new_datapoint.append(id2ts[d[4]])
     return new_datapoint
 
+
 def getAllDicts():
-    base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
+    # dataset_name = 'wikidata_small'
+    dataset_name = 'wikidata_big'
+    # base_path = '/scratche/home/apoorv/tkbc/tkbc_env/lib/python3.7/site-packages/tkbc-0.0.0-py3.7.egg/tkbc/data/wikidata_small/'
+    base_path = 'data/{dataset_name}/kg/tkbc_processed_data/{dataset_name}/'.format(
+        dataset_name=dataset_name
+    )
     dicts = {}
     for f in ['ent_id', 'rel_id', 'ts_id']:
         in_file = open(str(base_path + f), 'rb')
@@ -41,14 +48,19 @@ def getAllDicts():
     rel2id = dicts['rel_id']
     ent2id = dicts['ent_id']
     ts2id = dicts['ts_id']
-    file_ent = '/scratche/home/apoorv/tempqa/data/temporal_small/entity2wd_id.txt'
-    file_rel = '/scratche/home/apoorv/tempqa/data/temporal_small/relation2wd_id.txt'
-
+    file_ent = 'data/{dataset_name}/kg/wd_id2entity_text.txt'.format(
+        dataset_name=dataset_name
+    )
+    file_rel = 'data/{dataset_name}/kg/wd_id2relation_text.txt'.format(
+        dataset_name=dataset_name
+    )
     def readDict(filename):
         f = open(filename, 'r')
         d = {}
         for line in f:
             line = line.strip().split('\t')
+            if len(line) == 1:
+                line.append('') # in case literal was blank or whitespace
             d[line[0]] = line[1]
         f.close()
         return d
@@ -60,7 +72,6 @@ def getAllDicts():
     def getReverseDict(d):
         return {value: key for key, value in d.items()}
 
-    
     id2rel = getReverseDict(rel2id)
     id2ent = getReverseDict(ent2id)
     id2ts = getReverseDict(ts2id)
@@ -75,6 +86,7 @@ def getAllDicts():
                 }
 
     return all_dicts
+
 
 
 def checkQuestion(question, target_template):

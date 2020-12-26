@@ -18,12 +18,18 @@ class QA_Dataset(object):
                 filename='/scratche/home/apoorv/tempqa/data/questions/questions_position_held_small_with_paraphrases_v2_shuffled.pickle'):
         num_valid = 5000
         num_test = 5000
-        questions = pickle.load(open(filename, 'rb'))
+        folder_name = 'data/wikidata_big/questions/'
+        
+        self.train = pickle.load(open(folder_name + 'train.pickle', 'rb'))
+        self.valid = pickle.load(open(folder_name + 'valid.pickle', 'rb'))
+        self.test = pickle.load(open(folder_name + 'test.pickle', 'rb'))
         self.all_dicts = utils.getAllDicts()
-        self.valid = questions[:num_valid]
-        self.test = questions[num_valid: num_valid + num_test]
-        self.train = questions[num_valid + num_test :]
-        print('Total questions = ', len(questions))
+        # questions = pickle.load(open(filename, 'rb'))
+        # self.valid = questions[:num_valid]
+        # self.test = questions[num_valid: num_valid + num_test]
+        # self.train = questions[num_valid + num_test :]
+        # 
+        print('Total questions = ', len(self.train + self.valid + self.test ))
 
         self.data = {}
         self.data['valid'] = self.valid
