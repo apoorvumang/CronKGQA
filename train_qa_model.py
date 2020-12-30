@@ -6,7 +6,7 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings
 from qa_datasets import QA_Dataset, QA_Dataset_model1
 from torch.utils.data import Dataset, DataLoader
 import utils
@@ -132,8 +132,8 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
 
     for i, question in enumerate(dataset.data):
         actual_answers = question['answers']
-        # question_type = question['type']
-        question_type = question['template']
+        question_type = question['type']
+        # question_type = question['template']
         predicted = topk_answers[i]
         if len(set(actual_answers).intersection(set(predicted))) > 0:
             question_types_count[question_type].append(1)
@@ -227,6 +227,10 @@ if args.model == 'model1':
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'knowbert':
     qa_model = QA_model_KnowBERT(tkbc_model, args)
+    dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'embedding_only':
+    qa_model = QA_model_Only_Embeddings(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 else:
