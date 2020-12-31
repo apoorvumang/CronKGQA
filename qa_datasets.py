@@ -21,7 +21,8 @@ from torch.utils.data import Dataset, DataLoader
 class QA_Dataset(Dataset):
     def __init__(self, 
                 split,
-                dataset_name):
+                dataset_name,
+                tokenization_needed=True):
         filename = 'data/{dataset_name}/questions/{split}.pickle'.format(
             dataset_name=dataset_name,
             split=split
@@ -37,6 +38,7 @@ class QA_Dataset(Dataset):
         self.all_dicts = utils.getAllDicts(dataset_name)
         print('Total questions = ', len(questions))
         self.data = questions
+        self.tokenization_needed = tokenization_needed
         # self.data = self.data[:1000]
 
     def getEntitiesLocations(self, question):
@@ -147,8 +149,8 @@ class QA_Dataset(Dataset):
 
 
 class QA_Dataset_model1(QA_Dataset):
-    def __init__(self, split, dataset_name):
-        super().__init__(split, dataset_name)
+    def __init__(self, split, dataset_name, tokenization_needed=True):
+        super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         self.prepared_data = self.prepare_data(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
@@ -200,7 +202,12 @@ class QA_Dataset_model1(QA_Dataset):
         entities_times_padded_mask = torch.stack([item[2] for item in items])
         answers_khot = torch.stack([item[3] for item in items])
         batch_sentences = [item[0] for item in items]
-        b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
-        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot
+        if self.tokenization_needed == True:
+            b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
+        else:
+            b = {}
+            b['input_ids'] = torch.zeros(1)
+            b['attention_mask'] = torch.zeros(1)
+        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot, batch_sentences
 
 

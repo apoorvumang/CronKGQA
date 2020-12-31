@@ -6,14 +6,13 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT
 from qa_datasets import QA_Dataset, QA_Dataset_model1
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
 from utils import loadTkbcModel
 from collections import defaultdict
-
 
 parser = argparse.ArgumentParser(
     description="Temporal KGQA"
@@ -59,7 +58,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--valid_batch_size', default=128, type=int,
+    '--valid_batch_size', default=50, type=int,
     help="Valid batch size."
 )
 
@@ -112,13 +111,14 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         entities_times_padded = a[2]
         entities_times_padded_mask = a[3]
         answers_khot = a[4]
+        question_text = a[5]
         # if size of split is multiple of batch size, we need this
         # todo: is there a more elegant way?
         if i_batch * batch_size == len(data_loader):
             break
         scores = qa_model.forward(question_tokenized.cuda(), 
                 question_attention_mask.cuda(), entities_times_padded.cuda(), 
-                entities_times_padded_mask.cuda())
+                entities_times_padded_mask.cuda(), question_text)
         for s in scores:
             pred = dataset.getAnswersFromScores(s, k=k)
             topk_answers.append(pred)
@@ -174,9 +174,10 @@ def train(qa_model, dataset, valid_dataset, args):
             entities_times_padded = a[2]
             entities_times_padded_mask = a[3]
             answers_khot = a[4]
+            question_text = a[5]
             scores = qa_model.forward(question_tokenized.cuda(), 
                         question_attention_mask.cuda(), entities_times_padded.cuda(), 
-                        entities_times_padded_mask.cuda())
+                        entities_times_padded_mask.cuda(), question_text)
 
             loss = qa_model.loss(scores, answers_khot.cuda())
             loss.backward()
@@ -217,8 +218,8 @@ tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file
 ))
 
 
-# utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
-# exit(0)
+utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
+exit(0)
 
 
 if args.model == 'model1':
@@ -231,6 +232,10 @@ elif args.model == 'knowbert':
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'embedding_only':
     qa_model = QA_model_Only_Embeddings(tkbc_model, args)
+    dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name, tokenization_needed=False)
+    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'bert':
+    qa_model = QA_model_BERT(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
 else:
