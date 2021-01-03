@@ -31,8 +31,9 @@ class QA_model(nn.Module):
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
         self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
-        for param in self.roberta_model.parameters():
-            param.requires_grad = False
+        if args.lm_frozen == 1:
+            for param in self.roberta_model.parameters():
+                param.requires_grad = False
         # transformer
         self.transformer_dim = self.tkbc_embedding_dim # keeping same so no need to project embeddings
         self.nhead = 8
@@ -97,8 +98,9 @@ class QA_model_BERT(nn.Module):
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
         num_times = tkbc_model.embeddings[2].weight.shape[0]
         self.linear = nn.Linear(768, num_entities + num_times)
-        for param in self.roberta_model.parameters():
-            param.requires_grad = True
+        if args.lm_frozen == 1:
+            for param in self.roberta_model.parameters():
+                param.requires_grad = False
         # transformer
         # print('Random starting embedding')
         self.loss = nn.BCEWithLogitsLoss(reduction='mean')
@@ -126,8 +128,9 @@ class QA_model_KnowBERT(nn.Module):
         archive_file = 'https://allennlp.s3-us-west-2.amazonaws.com/knowbert/models/knowbert_wiki_wordnet_model.tar.gz'
         params = Params({"archive_file": archive_file})
         self.kbert_model = ModelArchiveFromParams.from_params(params=params)
-        for param in self.kbert_model.parameters():
-            param.requires_grad = False
+        if args.lm_frozen == 1:
+            for param in self.kbert_model.parameters():
+                param.requires_grad = False
         print('KnowBERT model loaded')
         batch_size = args.batch_size
         self.batcher = KnowBertBatchifier(archive_file, batch_size=batch_size)
