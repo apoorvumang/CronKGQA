@@ -6,8 +6,8 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT
-from qa_datasets import QA_Dataset, QA_Dataset_model1
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE
+from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
@@ -54,6 +54,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--num_transformer_heads', default=8, type=int,
+    help="Num heads for transformer"
+)
+
+parser.add_argument(
+    '--num_transformer_layers', default=6, type=int,
+    help="Num layers for transformer"
+)
+
+parser.add_argument(
     '--batch_size', default=512, type=int,
     help="Batch size."
 )
@@ -62,7 +72,6 @@ parser.add_argument(
     '--valid_batch_size', default=50, type=int,
     help="Valid batch size."
 )
-
 
 parser.add_argument(
     '--frozen', default=1, type=int,
@@ -278,10 +287,9 @@ tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file
     dataset_name = args.dataset_name, tkbc_model_file=args.tkbc_model_file
 ))
 
-
-# utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
-# exit(0)
-
+if args.mode == 'test_kge':
+    utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
+    exit(0)
 
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
@@ -299,6 +307,10 @@ elif args.model == 'bert':
     qa_model = QA_model_BERT(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'eae':
+    qa_model = QA_model_EaE(tkbc_model, args)
+    dataset = QA_Dataset_EaE(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EaE(split=args.eval_split, dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
@@ -320,7 +332,6 @@ else:
 qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
-    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
     score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
