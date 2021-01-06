@@ -50,6 +50,8 @@ class QA_model(nn.Module):
         full_embed_matrix = torch.cat([ent_emb_matrix, time_emb_matrix], dim=0)
         self.entity_time_embedding = nn.Embedding(num_entities + num_times, self.tkbc_embedding_dim)
         self.entity_time_embedding.weight.data.copy_(full_embed_matrix)
+        self.max_seq_length = 100 # randomly defining max length of tokens for question
+        self.position_embedding = nn.Embedding(self.max_seq_length, self.tkbc_embedding_dim)
         if args.frozen == 1:
             print('Freezing entity/time embeddings')
             self.entity_time_embedding.weight.requires_grad = False
@@ -57,6 +59,7 @@ class QA_model(nn.Module):
             print('Unfrozen entity/time embeddings')
         # print('Random starting embedding')
         self.loss = nn.BCEWithLogitsLoss(reduction='mean')
+        self.layer_norm = nn.LayerNorm(self.transformer_dim)
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
@@ -77,13 +80,26 @@ class QA_model(nn.Module):
         question_embedding = self.project_sentence_to_transformer_dim(question_embedding)
         question_embedding = question_embedding.unsqueeze(1)
         sequence = torch.cat([question_embedding, entity_time_embedding], dim=1)
+        # making position embedding
+        sequence_length = sequence.shape[1]
+        v = np.arange(0, sequence_length, dtype=np.long)
+        indices_for_position_embedding = torch.from_numpy(v).cuda()
+        position_embedding = self.position_embedding(indices_for_position_embedding)
+        position_embedding = position_embedding.unsqueeze(0).expand(sequence.shape)
+
+        # adding position embedding
+        sequence = sequence + position_embedding
+        sequence = self.layer_norm(sequence)
+
         sequence = torch.transpose(sequence, 0, 1)
         batch_size = entity_time_embedding.shape[0]
         true_vector = torch.zeros((batch_size, 1), dtype=torch.bool).cuda() # fills with True
         mask = torch.cat([true_vector, entities_times_padded_mask], dim=1)
+
+
         # comment foll 2 lines for returning to normal behaviour
-        layer_norm = nn.LayerNorm(sequence.size()[1:], elementwise_affine=False)
-        sequence = layer_norm(sequence)
+        # layer_norm = nn.LayerNorm(sequence.size()[1:], elementwise_affine=False)
+        # sequence = layer_norm(sequence)
         output = self.transformer_encoder(sequence, src_key_padding_mask=mask)
         output = torch.transpose(output, 0, 1)
         # averaging token embeddings
@@ -132,8 +148,12 @@ class QA_model_EaE(nn.Module):
             self.entity_time_embedding.weight.requires_grad = False
         else:
             print('Unfrozen entity/time embeddings')
+        # position embedding for transformer
+        self.max_seq_length = 100 # randomly defining max length of tokens for question
+        self.position_embedding = nn.Embedding(self.max_seq_length, self.tkbc_embedding_dim)
         # print('Random starting embedding')
         self.loss = nn.BCEWithLogitsLoss(reduction='mean')
+        self.layer_norm = nn.LayerNorm(self.transformer_dim)
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
@@ -147,16 +167,27 @@ class QA_model_EaE(nn.Module):
         # we add those 2 now, and do layer norm??
         combined_embed = question_embedding + entity_time_embedding
 
-        layer_norm = nn.LayerNorm(combined_embed.size()[1:], elementwise_affine=False)
-        combined_embed = layer_norm(combined_embed)
+        # also need to add position embedding
+        sequence_length = combined_embed.shape[1]
+        v = np.arange(0, sequence_length, dtype=np.long)
+        indices_for_position_embedding = torch.from_numpy(v).cuda()
+        position_embedding = self.position_embedding(indices_for_position_embedding)
+        position_embedding = position_embedding.unsqueeze(0).expand(combined_embed.shape)
+
+        combined_embed = combined_embed + position_embedding
+
+        # layer_norm = nn.LayerNorm(combined_embed.size()[1:], elementwise_affine=False)
+        # combined_embed = layer_norm(combined_embed)
+        combined_embed = self.layer_norm(combined_embed)
         # need to transpose lol, why is this like this?
         # why is first dimension sequence length and not batch size?
         combined_embed = torch.transpose(combined_embed, 0, 1)
         # question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
         output = self.transformer_encoder(combined_embed, src_key_padding_mask=entities_times_padded_mask)
-        output = torch.transpose(output, 0, 1)
-        # averaging token embeddings
-        output = torch.mean(output, dim=1)
+        output = output[0] #cls token embedding
+        # output = torch.transpose(output, 0, 1)
+        # # averaging token embeddings
+        # output = torch.mean(output, dim=1)
         scores = torch.matmul(output, self.entity_time_embedding.weight.data[:-1, :].T) # cuz padding idx
 #         scores = self.final_linear(output)
         # scores = torch.sigmoid(scores)
