@@ -192,6 +192,93 @@ class QA_model_EaE(nn.Module):
 #         scores = self.final_linear(output)
         # scores = torch.sigmoid(scores)
         return scores
+
+class QA_model_EaE_replace(nn.Module):
+    def __init__(self, tkbc_model, args):
+        super().__init__()
+        self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
+        self.sentence_embedding_dim = 768 # hardwired from roberta?
+        self.pretrained_weights = 'distilbert-base-uncased'
+        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        if args.lm_frozen == 1:
+            print('Freezing LM params')
+            for param in self.roberta_model.parameters():
+                param.requires_grad = False
+        else:
+            print('Unfrozen LM params')
+
+        # transformer
+        self.transformer_dim = self.tkbc_embedding_dim # keeping same so no need to project embeddings
+        self.nhead = args.num_transformer_heads
+        self.num_layers = args.num_transformer_layers
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.transformer_dim, nhead=self.nhead)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
+
+        self.project_sentence_to_transformer_dim = nn.Linear(self.sentence_embedding_dim, self.transformer_dim)
+
+        self.project_entity = nn.Linear(self.tkbc_embedding_dim, self.transformer_dim)
+
+        num_entities = tkbc_model.embeddings[0].weight.shape[0]
+        num_times = tkbc_model.embeddings[2].weight.shape[0]
+        ent_emb_matrix = tkbc_model.embeddings[0].weight.data
+        time_emb_matrix = tkbc_model.embeddings[2].weight.data
+        full_embed_matrix = torch.cat([ent_emb_matrix, time_emb_matrix], dim=0)
+        # +1 is for padding idx
+        self.entity_time_embedding = nn.Embedding(num_entities + num_times + 1,
+                                                  self.tkbc_embedding_dim,
+                                                  padding_idx=num_entities + num_times)
+        self.entity_time_embedding.weight.data[:-1, :].copy_(full_embed_matrix)
+        if args.frozen == 1:
+            print('Freezing entity/time embeddings')
+            self.entity_time_embedding.weight.requires_grad = False
+        else:
+            print('Unfrozen entity/time embeddings')
+        # position embedding for transformer
+        self.max_seq_length = 100 # randomly defining max length of tokens for question
+        self.position_embedding = nn.Embedding(self.max_seq_length, self.tkbc_embedding_dim)
+        # print('Random starting embedding')
+        self.loss = nn.BCEWithLogitsLoss(reduction='mean')
+        self.layer_norm = nn.LayerNorm(self.transformer_dim)
+#         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
+        return
+
+    def invert_binary_tensor(self, tensor):
+        ones_tensor = torch.ones(tensor.shape, dtype=torch.float32).cuda()
+        inverted = ones_tensor - tensor
+        return inverted
+
+    def forward(self, question_tokenized, question_attention_mask, 
+                entities_times_padded, entity_mask_padded, question_text):
+        entity_time_embedding = self.entity_time_embedding(entities_times_padded)
+        outputs = self.roberta_model(question_tokenized, attention_mask=question_attention_mask)
+        last_hidden_states = outputs.last_hidden_state
+        question_embedding = self.project_sentence_to_transformer_dim(last_hidden_states)
+        entity_mask = entity_mask_padded.unsqueeze(-1).expand(question_embedding.shape)
+        masked_question_embedding = question_embedding * entity_mask # set entity positions 0
+        # project to get into same space as word vectors
+        # E-BERT does pretraining of this kind of projection
+        # TODO: do we need such projection training beforehand?
+        entity_time_embedding_projected = self.project_entity(entity_time_embedding)
+        masked_entity_time_embedding = entity_time_embedding_projected * self.invert_binary_tensor(entity_mask) # invert mask for this
+        combined_embed = masked_question_embedding + masked_entity_time_embedding
+        # also need to add position embedding
+        sequence_length = combined_embed.shape[1]
+        v = np.arange(0, sequence_length, dtype=np.long)
+        indices_for_position_embedding = torch.from_numpy(v).cuda()
+        position_embedding = self.position_embedding(indices_for_position_embedding)
+        position_embedding = position_embedding.unsqueeze(0).expand(combined_embed.shape)
+
+        combined_embed = combined_embed + position_embedding
+
+        combined_embed = self.layer_norm(combined_embed)
+        combined_embed = torch.transpose(combined_embed, 0, 1)
+
+        mask2 = ~(question_attention_mask.bool()).cuda()
+        output = self.transformer_encoder(combined_embed, src_key_padding_mask=mask2)
+        output = output[0] #cls token embedding
+        scores = torch.matmul(output, self.entity_time_embedding.weight.data[:-1, :].T) # cuz padding idx
+        return scores
+        
         
 
 class QA_model_BERT(nn.Module):
@@ -406,5 +493,6 @@ class QA_model_EmbedKGQA(nn.Module):
         x = torch.Tensor([-float("Inf")]).cuda()
         x = x.expand((heads.shape[0], self.num_entities))
         scores = torch.cat((x, scores_time), dim=1)
+        # somehow BCE logits loss not working with inf, so using normal BCE after sigmoid
         scores = torch.sigmoid(scores)
         return scores

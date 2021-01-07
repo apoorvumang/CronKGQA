@@ -6,8 +6,8 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA
-from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace
+from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_model1_reduced, QA_Dataset_EaE_replace
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
@@ -298,6 +298,10 @@ if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'model1_reduced':
+    qa_model = QA_model(tkbc_model, args)
+    dataset = QA_Dataset_model1_reduced(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_model1_reduced(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'knowbert':
     qa_model = QA_model_KnowBERT(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
@@ -314,6 +318,10 @@ elif args.model == 'eae':
     qa_model = QA_model_EaE(tkbc_model, args)
     dataset = QA_Dataset_EaE(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_EaE(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'eae_replace':
+    qa_model = QA_model_EaE_replace(tkbc_model, args)
+    dataset = QA_Dataset_EaE_replace(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EaE_replace(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'embedkgqa':
     qa_model = QA_model_EmbedKGQA(tkbc_model, args)
     dataset = QA_Dataset_EmbedKGQA(split='train', dataset_name=args.dataset_name)

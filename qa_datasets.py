@@ -368,6 +368,49 @@ class QA_Dataset_model1(QA_Dataset):
             b['attention_mask'] = torch.zeros(1)
         return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot, batch_sentences
 
+class QA_Dataset_model1_reduced(QA_Dataset):
+    def __init__(self, split, dataset_name, tokenization_needed=True):
+        super().__init__(split, dataset_name, tokenization_needed)
+        print('Preparing data for split %s' % split)
+        new_data = []
+        for qn in self.data:
+            if qn['type'] == 'simple_time':
+                new_data.append(qn)
+        self.data = new_data
+        self.prepared_data = self.prepare_data(self.data)
+        self.num_total_entities = len(self.all_dicts['ent2id'])
+        self.num_total_times = len(self.all_dicts['ts2id'])
+        self.answer_vec_size = self.num_total_entities + self.num_total_times
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        data = self.prepared_data
+        question_text = data['question_text'][index]
+        entity_time_ids = data['entity_time_ids'][index]
+        answers_arr = data['answers_arr'][index]
+
+        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        # max 5 entities in question?
+        entities_times_padded, entities_times_padded_mask = self.padding_tensor([entity_time_ids], 5)
+        entities_times_padded = entities_times_padded.squeeze()
+        entities_times_padded_mask = entities_times_padded_mask.squeeze()
+        return question_text, entities_times_padded, entities_times_padded_mask, answers_khot
+
+    def _collate_fn(self, items):
+        entities_times_padded = torch.stack([item[1] for item in items])
+        entities_times_padded_mask = torch.stack([item[2] for item in items])
+        answers_khot = torch.stack([item[3] for item in items])
+        batch_sentences = [item[0] for item in items]
+        if self.tokenization_needed == True:
+            b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
+        else:
+            b = {}
+            b['input_ids'] = torch.zeros(1)
+            b['attention_mask'] = torch.zeros(1)
+        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot, batch_sentences
+
 
 class QA_Dataset_EaE(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
@@ -539,3 +582,191 @@ class QA_Dataset_EaE(QA_Dataset):
         answers_khot = torch.stack([item[3] for item in items])
         
         return input_ids, attention_mask, entity_time_ids_padded, entity_time_ids_padded_mask, answers_khot, batch_sentences
+
+# replace entity mention tokens
+# rather than add + layernorm
+class QA_Dataset_EaE_replace(QA_Dataset):
+    def __init__(self, split, dataset_name, tokenization_needed=True):
+        super().__init__(split, dataset_name, tokenization_needed)
+        print('Preparing data for split %s' % split)
+        # self.data = self.data[:1000]
+        # random.shuffle(self.data)
+        self.data = self.addEntityAnnotation(self.data)
+        self.num_total_entities = len(self.all_dicts['ent2id'])
+        self.num_total_times = len(self.all_dicts['ts2id'])
+        self.padding_idx = self.num_total_entities +  self.num_total_times # padding id for embedding of ent/time
+        self.answer_vec_size = self.num_total_entities + self.num_total_times
+        self.prepared_data = self.prepare_data2(self.data)
+        
+    def __len__(self):
+        return len(self.data)
+
+    def getEntityTimeTextIds(self, question, pp_id = 0):
+        keyword_dict = question['keyword_dicts'][pp_id]
+        keyword_id_dict = question['annotation'] # this does not depend on paraphrase
+        output_text = []
+        output_ids = []
+        entity_time_keywords = set(['head', 'tail', 'time', 'event_head'])
+        for keyword, value in keyword_dict.items():
+            if keyword in entity_time_keywords:
+                wd_id_or_time = keyword_id_dict[keyword]
+                output_text.append(value)
+                output_ids.append(wd_id_or_time)
+        return output_text, output_ids
+    
+    def get_entity_aware_tokenization(self, nl_question, ent_times, ent_times_ids):
+        # what we want finally is that after proper tokenization 
+        # of nl question, we know which indices are beginning tokens
+        # of entities and times in the question
+        index_et_pairs = []
+        index_et_text_pairs = []
+        for e_text, e_id in zip(ent_times, ent_times_ids):
+            location = nl_question.find(e_text)
+            pair = (location, e_id)
+            index_et_pairs.append(pair)
+            pair = (location, e_text)
+            index_et_text_pairs.append(pair)
+        index_et_pairs.sort()
+        index_et_text_pairs.sort()
+        my_tokenized_question = []
+        start_index = 0
+        arr = []
+        for pair, pair_id in zip(index_et_text_pairs, index_et_pairs):
+            end_index = pair[0]
+            if nl_question[start_index: end_index] != '':
+                my_tokenized_question.append(nl_question[start_index: end_index])
+                arr.append(self.padding_idx)
+            start_index = end_index
+            end_index = start_index + len(pair[1])
+            # todo: assuming entity name can't be blank
+            # my_tokenized_question.append(nl_question[start_index: end_index])
+            my_tokenized_question.append(self.tokenizer.mask_token)
+            matrix_id = self.textToEntTimeId(pair_id[1]) # get id in embedding matrix
+            arr.append(matrix_id)
+            start_index = end_index
+        if nl_question[start_index:] != '':
+            my_tokenized_question.append(nl_question[start_index:])
+            arr.append(self.padding_idx)
+
+        tokenized, valid_ids = self.tokenize(my_tokenized_question)
+        entity_time_final = []
+        index = 0
+        for vid in valid_ids:
+            if vid == 0:
+                entity_time_final.append(self.padding_idx)
+            else:
+                entity_time_final.append(arr[index])
+                index += 1
+        entity_mask = [] # want 0 if entity, 1 if not, since will multiply this later with word embedding
+        for x in entity_time_final:
+            if x == self.padding_idx:
+                entity_mask.append(1.)
+            else:
+                entity_mask.append(0.)
+        return tokenized, entity_time_final, entity_mask
+
+    
+    def prepare_data2(self, data):
+        # we want to prepare answers lists for each question
+        # then at batch prep time, we just stack these
+        # and use scatter 
+        question_text = []
+        tokenized_question = []
+        entity_time_ids_tokenized_question = []
+        entity_mask_tokenized_question = []
+        pp_id = 0
+        num_total_entities = len(self.all_dicts['ent2id'])
+        answers_arr = []
+        for question in tqdm(data):
+            # randomly sample pp
+            # in test there is only 1 pp, so always pp_id=0
+            # TODO: this random is causing assertion bug later on
+            # pp_id = random.randint(0, len(question['paraphrases']) - 1)
+            pp_id = 0
+            nl_question = question['paraphrases'][pp_id]
+            et_text, et_ids = self.getEntityTimeTextIds(question, pp_id)
+
+            tokenized, entity_time_final, entity_mask = self.get_entity_aware_tokenization(nl_question, et_text, et_ids)
+            assert len(tokenized) == len(entity_time_final)
+            question_text.append(nl_question)
+            tokenized_question.append(self.tokenizer.convert_tokens_to_ids(tokenized))
+            entity_mask_tokenized_question.append(entity_mask)
+            entity_time_ids_tokenized_question.append(entity_time_final)
+            if question['answer_type'] == 'entity':
+                answers = self.entitiesToIds(question['answers'])
+            else:
+                # adding num_total_entities to each time id
+                answers = [x + num_total_entities for x in self.timesToIds(question['answers'])]
+            answers_arr.append(answers)
+        return {'question_text': question_text, 
+                'tokenized_question': tokenized_question,
+                'entity_time_ids': entity_time_ids_tokenized_question, 
+                'entity_mask': entity_mask_tokenized_question,
+                'answers_arr': answers_arr}
+    
+    # tokenization function taken from NER code
+    def tokenize(self, words):
+        """ tokenize input"""
+        tokens = []
+        valid_positions = []
+        tokens.append(self.tokenizer.cls_token)
+        valid_positions.append(0)
+        for i,word in enumerate(words):
+            token = self.tokenizer.tokenize(word)
+            tokens.extend(token)
+            for i in range(len(token)):
+                if i == 0:
+                    valid_positions.append(1)
+                else:
+                    valid_positions.append(0)
+        tokens.append(self.tokenizer.sep_token)
+        valid_positions.append(0)
+        return tokens, valid_positions
+
+    def __getitem__(self, index):
+        data = self.prepared_data
+        question_text = data['question_text'][index]
+        entity_time_ids = np.array(data['entity_time_ids'][index], dtype=np.long)
+        answers_arr = data['answers_arr'][index]
+        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        tokenized_question = data['tokenized_question'][index]
+        entity_mask = data['entity_mask'][index]
+        return question_text, tokenized_question, entity_time_ids, entity_mask, answers_khot
+
+    def pad_for_batch(self, to_pad, padding_val, dtype=np.long):
+        padded = np.ones([len(to_pad),len(max(to_pad,key = lambda x: len(x)))], dtype=dtype) * padding_val
+        for i,j in enumerate(to_pad):
+            padded[i][0:len(j)] = j
+        return padded
+
+    # do this before padding for batch
+    def get_attention_mask(self, tokenized):
+        # first make zeros array of appropriate size
+        mask = np.zeros([len(tokenized),len(max(tokenized,key = lambda x: len(x)))], dtype=np.long)
+        # now set ones everywhere needed
+        for i,j in enumerate(tokenized):
+            mask[i][0:len(j)] = np.ones(len(j), dtype=np.long)
+        return mask
+    
+    def _collate_fn(self, items):
+        batch_sentences = [item[0] for item in items]
+        # please don't tokenize again
+        # b = self.tokenizer(batch_sentences, padding=True, truncation=False, return_tensors="pt")
+
+        tokenized_questions = [item[1] for item in items]
+        attention_mask = torch.from_numpy(self.get_attention_mask(tokenized_questions))
+        input_ids = torch.from_numpy(self.pad_for_batch(tokenized_questions, self.tokenizer.pad_token_id, np.long))
+
+        entity_time_ids_list = [item[2] for item in items]
+        entity_time_ids_padded = self.pad_for_batch(entity_time_ids_list, self.padding_idx, np.long)
+        entity_time_ids_padded = torch.from_numpy(entity_time_ids_padded)
+
+        entity_mask = [item[3] for item in items] # 0 if entity, 1 if not
+        entity_mask_padded = self.pad_for_batch(entity_mask, 1.0, np.float32) # doesnt matter probably cuz attention mask will be used. maybe pad with 1?
+        entity_mask_padded = torch.from_numpy(entity_mask_padded)
+        # can make foll mask in forward function using attention mask
+        # entity_time_ids_padded_mask = ~(attention_mask.bool())
+
+        answers_khot = torch.stack([item[4] for item in items])
+        
+        return input_ids, attention_mask, entity_time_ids_padded, entity_mask_padded, answers_khot, batch_sentences
