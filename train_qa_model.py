@@ -6,8 +6,8 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE
-from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA
+from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
@@ -135,7 +135,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         question_text = a[5]
         # if size of split is multiple of batch size, we need this
         # todo: is there a more elegant way?
-        if i_batch * batch_size == len(data_loader):
+        if i_batch * batch_size == len(dataset.data):
             break
         scores = qa_model.forward(question_tokenized.cuda(), 
                 question_attention_mask.cuda(), entities_times_padded.cuda(), 
@@ -250,6 +250,9 @@ def train(qa_model, dataset, valid_dataset, args):
             entities_times_padded_mask = a[3]
             answers_khot = a[4]
             question_text = a[5]
+            # TODO: depending on model, these variable names might not be representative
+            # but trying to keep number of arguments constant across models
+            # so that don't need 'if condition' here
             scores = qa_model.forward(question_tokenized.cuda(), 
                         question_attention_mask.cuda(), entities_times_padded.cuda(), 
                         entities_times_padded_mask.cuda(), question_text)
@@ -311,6 +314,10 @@ elif args.model == 'eae':
     qa_model = QA_model_EaE(tkbc_model, args)
     dataset = QA_Dataset_EaE(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_EaE(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'embedkgqa':
+    qa_model = QA_model_EmbedKGQA(tkbc_model, args)
+    dataset = QA_Dataset_EmbedKGQA(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)

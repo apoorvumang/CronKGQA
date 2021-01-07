@@ -253,6 +253,82 @@ class QA_Dataset(Dataset):
         return output
 
 
+class QA_Dataset_EmbedKGQA(QA_Dataset):
+    def __init__(self, split, dataset_name, tokenization_needed=True):
+        super().__init__(split, dataset_name, tokenization_needed)
+        print('Preparing data for split %s' % split)
+        # self.data = self.data[:30000]
+        new_data = []
+        for qn in self.data:
+            if qn['type'] == 'simple_time':
+                new_data.append(qn)
+        self.data = new_data
+        self.prepared_data = self.prepare_data(self.data)
+        self.num_total_entities = len(self.all_dicts['ent2id'])
+        self.num_total_times = len(self.all_dicts['ts2id'])
+        self.answer_vec_size = self.num_total_entities + self.num_total_times
+
+    def prepare_data(self, data):
+        # we want to prepare answers lists for each question
+        # then at batch prep time, we just stack these
+        # and use scatter 
+        question_text = []
+        heads = []
+        tails = []
+        num_total_entities = len(self.all_dicts['ent2id'])
+        answers_arr = []
+        ent2id = self.all_dicts['ent2id']
+        for question in data:
+            qtype = question['type']
+            if qtype != 'simple_time':
+                continue
+            # first pp is question text
+            # needs to be changed after making PD dataset
+            # to randomly sample from list
+            q_text = question['paraphrases'][0]
+            
+            annotation = question['annotation']
+            head = ent2id[annotation['head']]
+            tail = ent2id[annotation['tail']]
+
+            heads.append(head)
+            tails.append(tail)
+            question_text.append(q_text)
+            
+            if question['answer_type'] == 'entity':
+                answers = self.entitiesToIds(question['answers'])
+            else:
+                # adding num_total_entities to each time id
+                answers = [x + num_total_entities for x in self.timesToIds(question['answers'])]
+            answers_arr.append(answers)
+            
+        # answers_arr = self.get_stacked_answers_long(answers_arr)
+        return {'question_text': question_text, 
+                'head': heads, 
+                'tail': tails,
+                'answers_arr': answers_arr}
+
+    def __len__(self):
+        return len(self.prepared_data['question_text'])
+
+    def __getitem__(self, index):
+        data = self.prepared_data
+        question_text = data['question_text'][index]
+        head = data['head'][index]
+        tail = data['tail'][index]
+        answers_arr = data['answers_arr'][index]
+        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        
+        return question_text, head, tail, answers_khot
+
+    def _collate_fn(self, items):
+        batch_sentences = [item[0] for item in items]
+        b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
+        heads = torch.from_numpy(np.array([item[1] for item in items]))
+        
+        tails = torch.from_numpy(np.array([item[2] for item in items]))
+        answers_khot = torch.stack([item[3] for item in items])
+        return b['input_ids'], b['attention_mask'], heads, tails, answers_khot, batch_sentences
 
 class QA_Dataset_model1(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
@@ -378,9 +454,11 @@ class QA_Dataset_EaE(QA_Dataset):
         num_total_entities = len(self.all_dicts['ent2id'])
         answers_arr = []
         for question in tqdm(data):
-            # first pp is question text
-            # needs to be changed after making PD dataset
-            # to randomly sample from list or something
+            # randomly sample pp
+            # in test there is only 1 pp, so always pp_id=0
+            # TODO: this random is causing assertion bug later on
+            # pp_id = random.randint(0, len(question['paraphrases']) - 1)
+            pp_id = 0
             nl_question = question['paraphrases'][pp_id]
             et_text, et_ids = self.getEntityTimeTextIds(question, pp_id)
 

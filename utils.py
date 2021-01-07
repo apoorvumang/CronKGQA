@@ -87,9 +87,9 @@ def getAllDicts(dataset_name):
     return all_dicts
 
 
-def checkQuestion(question, target_template):
-    template = question['template']
-    if target_template != template:
+def checkQuestion(question, target_type):
+    question_type = question['type']
+    if target_type != question_type:
         return False
     return True
 
@@ -98,23 +98,21 @@ def checkQuestion(question, target_template):
 def predictTime(question, model, all_dicts, k=1):
     entities = list(question['entities'])
     times = question['times']
-    target_template = 'When did {head} hold the position of {tail}?'
-    if checkQuestion(question, target_template) == False:
-        print('Not time question')
+    target_type = 'simple_time'
+    if checkQuestion(question, target_type) == False:
+        print('Not Entity question')
         return set()
     ent2id = all_dicts['ent2id']
     rel2id = all_dicts['rel2id']
     id2ts = all_dicts['id2ts']
-    ent1 = entities[0]
-    ent2 = entities[1]
-    text = question['question']
-    if text.find(ent1) < text.find(ent2):
-        head = ent2id[ent1]
-        tail = ent2id[ent2]
-    else:
-        head = ent2id[ent2]
-        tail = ent2id[ent1]
-    relation = rel2id[list(question['relations'])[0]]
+    annotation = question['annotation']
+    head = ent2id[annotation['head']]
+    tail = ent2id[annotation['tail']]
+    # relation = rel2id[list(question['relations'])[0]]
+    relation = list(question['relations'])[0]
+    if 'P' not in relation:
+        relation = 'P' + relation
+    relation = rel2id[relation] #+ model.embeddings[1].weight.shape[0]//2 #+ 90
     data_point = [head, relation, tail, 1, 1]
     data_batch = torch.from_numpy(np.array([data_point])).cuda()
     time_scores = model.forward_over_time(data_batch)
@@ -128,9 +126,9 @@ def predictTime(question, model, all_dicts, k=1):
 def predictHead(question, model, all_dicts, k=1):
     entities = list(question['entities'])
     times = list(question['times'])
-    target_template = 'Who was the {tail} in {time}?'
-    if checkQuestion(question, target_template) == False:
-        print('Not time question')
+    target_type = 'simple_entity'
+    if checkQuestion(question, target_type) == False:
+        print('Not Entity question')
         return set()
     ent2id = all_dicts['ent2id']
     rel2id = all_dicts['rel2id']
@@ -141,7 +139,10 @@ def predictHead(question, model, all_dicts, k=1):
         time = ts2id[(times[0],0,0)]
     except:
         return set()
-    relation = rel2id[list(question['relations'])[0]] + model.embeddings[1].weight.shape[0]//2 #+ 90
+    relation = list(question['relations'])[0]
+    if 'P' not in relation:
+        relation = 'P' + relation
+    relation = rel2id[relation] #+ model.embeddings[1].weight.shape[0]//2 #+ 90
     data_point = [head, relation, 1, time, time]
     data_batch = torch.from_numpy(np.array([data_point])).cuda()
     predictions, factors, time = model.forward(data_batch)
@@ -160,19 +161,17 @@ def checkIfTkbcEmbeddingsTrained(tkbc_model, dataset_name, split='test'):
         )
     questions = pickle.load(open(filename, 'rb'))
     all_dicts = getAllDicts(dataset_name)
-    for question_type in ['predictHead', 'predictTime']:
+    for question_type in ['simple_entity', 'simple_time']:
         correct_count = 0
         total_count = 0
         k = 1 # hit at k
         for i in tqdm(range(len(questions))):
-            question_template = questions[i]['template']
-            if question_type == 'predictHead':
+            this_question_type = questions[i]['type']
+            if question_type == this_question_type and question_type == 'simple_entity':
                 which_question_function = predictHead
-                target_template = 'Who was the {tail} in {time}?'
-            elif question_type == 'predictTime':
+            elif question_type == this_question_type and question_type == 'simple_time':
                 which_question_function = predictTime
-                target_template = 'When did {head} hold the position of {tail}?'            
-            if question_template != target_template:
+            else:
                 continue
             total_count += 1
             id = i   
