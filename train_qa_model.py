@@ -7,7 +7,7 @@ import pickle
 import numpy as np
 
 from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace
-from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_model1_reduced, QA_Dataset_EaE_replace
+from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_EaE_replace, QA_Dataset_knowbert
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
@@ -64,7 +64,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--batch_size', default=512, type=int,
+    '--batch_size', default=256, type=int,
     help="Batch size."
 )
 
@@ -84,7 +84,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--lr', default=1e-3, type=float,
+    '--lr', default=2e-4, type=float,
     help="Learning rate"
 )
 
@@ -99,7 +99,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--dataset_name', default='wikidata_small', type=str,
+    '--dataset_name', default='wikidata_big', type=str,
     help="Which dataset."
 )
 
@@ -115,7 +115,8 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     qa_model.eval()
     eval_log = []
     k_for_reporting = k # not change name in fn signature since named param used in places
-    k_list = [1, 3, 10]
+    # k_list = [1, 3, 10]
+    k_list = [1, 10]
     max_k = max(k_list)
     eval_log.append("Split %s" % (split))
     print('Evaluating split', split)
@@ -127,19 +128,12 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     loader = tqdm(data_loader, total=len(data_loader), unit="batches")
     
     for i_batch, a in enumerate(loader):
-        question_tokenized = a[0]
-        question_attention_mask = a[1]
-        entities_times_padded = a[2]
-        entities_times_padded_mask = a[3]
-        answers_khot = a[4]
-        question_text = a[5]
         # if size of split is multiple of batch size, we need this
         # todo: is there a more elegant way?
         if i_batch * batch_size == len(dataset.data):
             break
-        scores = qa_model.forward(question_tokenized.cuda(), 
-                question_attention_mask.cuda(), entities_times_padded.cuda(), 
-                entities_times_padded_mask.cuda(), question_text)
+        answers_khot = a[-1] # last one assumed to be target
+        scores = qa_model.forward(a)
         for s in scores:
             pred = dataset.getAnswersFromScores(s, k=max_k)
             topk_answers.append(pred)
@@ -155,33 +149,47 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         hits_at_k = 0
         total = 0
         question_types_count = defaultdict(list)
+        simple_complex_count = defaultdict(list)
+        entity_time_count = defaultdict(list)
 
         for i, question in enumerate(dataset.data):
             actual_answers = question['answers']
             question_type = question['type']
+            if 'simple' in question_type:
+                simple_complex_type = 'simple'
+            else:
+                simple_complex_type = 'complex'
+            entity_time_type = question['answer_type']
             # question_type = question['template']
             predicted = topk_answers[i][:k]
             if len(set(actual_answers).intersection(set(predicted))) > 0:
-                question_types_count[question_type].append(1)
+                val_to_append = 1
                 hits_at_k += 1
             else:
-                question_types_count[question_type].append(0)
+                val_to_append = 0
+            question_types_count[question_type].append(val_to_append)
+            simple_complex_count[simple_complex_type].append(val_to_append)
+            entity_time_count[entity_time_type].append(val_to_append)
             total += 1
 
         eval_accuracy = hits_at_k/total
         if k == k_for_reporting:
             eval_accuracy_for_reporting = eval_accuracy
         eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
-    
-        for key, value in question_types_count.items():
-            hits_at_k = sum(value)/len(value)
-            s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
-                q_type = key,
-                hits_at_k = round(hits_at_k, 3),
-                num_questions = len(value)
-            ) 
-            eval_log.append(s)
-        eval_log.append('')
+
+
+        # for dictionary in [question_types_count, simple_complex_count, entity_time_count]:
+        for dictionary in [simple_complex_count, entity_time_count]:
+            for key, value in dictionary.items():
+                hits_at_k = sum(value)/len(value)
+                s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
+                    q_type = key,
+                    hits_at_k = round(hits_at_k, 3),
+                    num_questions = len(value)
+                ) 
+                eval_log.append(s)
+            eval_log.append('')        
+
     # print eval log as well as return it
     for s in eval_log:
         print(s)
@@ -244,18 +252,22 @@ def train(qa_model, dataset, valid_dataset, args):
         running_loss = 0
         for i_batch, a in enumerate(loader):
             qa_model.zero_grad()
-            question_tokenized = a[0]
-            question_attention_mask = a[1]
-            entities_times_padded = a[2]
-            entities_times_padded_mask = a[3]
-            answers_khot = a[4]
-            question_text = a[5]
+            # question_tokenized = a[0]
+            # question_attention_mask = a[1]
+            # entities_times_padded = a[2]
+            # entities_times_padded_mask = a[3]
+            # answers_khot = a[4]
+            # question_text = a[5]
             # TODO: depending on model, these variable names might not be representative
             # but trying to keep number of arguments constant across models
             # so that don't need 'if condition' here
-            scores = qa_model.forward(question_tokenized.cuda(), 
-                        question_attention_mask.cuda(), entities_times_padded.cuda(), 
-                        entities_times_padded_mask.cuda(), question_text)
+            # TODO: pass variable 'a' and do splitting inside forward function
+                        # scores = qa_model.forward(question_tokenized.cuda(), 
+            #             question_attention_mask.cuda(), entities_times_padded.cuda(), 
+            #             entities_times_padded_mask.cuda(), question_text)
+
+            answers_khot = a[-1] # last one assumed to be target
+            scores = qa_model.forward(a)
 
             loss = qa_model.loss(scores, answers_khot.cuda())
             loss.backward()
@@ -291,21 +303,17 @@ tkbc_model = loadTkbcModel('models/{dataset_name}/kg_embeddings/{tkbc_model_file
 ))
 
 if args.mode == 'test_kge':
-    utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, 'test')
+    utils.checkIfTkbcEmbeddingsTrained(tkbc_model, args.dataset_name, args.eval_split)
     exit(0)
 
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
-elif args.model == 'model1_reduced':
-    qa_model = QA_model(tkbc_model, args)
-    dataset = QA_Dataset_model1_reduced(split='train', dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_model1_reduced(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'knowbert':
     qa_model = QA_model_KnowBERT(tkbc_model, args)
-    dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+    dataset = QA_Dataset_knowbert(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_knowbert(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'embedding_only':
     qa_model = QA_model_Only_Embeddings(tkbc_model, args)
     dataset = QA_Dataset_model1(split='train', dataset_name=args.dataset_name, tokenization_needed=False)

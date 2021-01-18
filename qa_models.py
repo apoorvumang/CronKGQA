@@ -50,6 +50,7 @@ class QA_model(nn.Module):
         full_embed_matrix = torch.cat([ent_emb_matrix, time_emb_matrix], dim=0)
         self.entity_time_embedding = nn.Embedding(num_entities + num_times, self.tkbc_embedding_dim)
         self.entity_time_embedding.weight.data.copy_(full_embed_matrix)
+        # print('Random entity embeddings!')
         self.max_seq_length = 100 # randomly defining max length of tokens for question
         self.position_embedding = nn.Embedding(self.max_seq_length, self.tkbc_embedding_dim)
         if args.frozen == 1:
@@ -72,8 +73,13 @@ class QA_model(nn.Module):
         # question_embedding = torch.mean(last_hidden_states, dim=1)
         return question_embedding
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entities_times_padded_mask, question_text):
+    # def forward(self, question_tokenized, question_attention_mask, 
+    #             entities_times_padded, entities_times_padded_mask, question_text):
+    def forward(self, a):
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        entities_times_padded = a[2].cuda()
+        entities_times_padded_mask = a[3].cuda()
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
         question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
         # question_embedding = torch.from_numpy(self.st_model.encode(question_text)).cuda()
@@ -143,6 +149,7 @@ class QA_model_EaE(nn.Module):
                                                   self.tkbc_embedding_dim,
                                                   padding_idx=num_entities + num_times)
         self.entity_time_embedding.weight.data[:-1, :].copy_(full_embed_matrix)
+        # print('Random entity/time embeddings!')
         if args.frozen == 1:
             print('Freezing entity/time embeddings')
             self.entity_time_embedding.weight.requires_grad = False
@@ -157,8 +164,11 @@ class QA_model_EaE(nn.Module):
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entities_times_padded_mask, question_text):
+    def forward(self, a):
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        entities_times_padded = a[2].cuda()
+        entities_times_padded_mask = a[3].cuda()
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
         outputs = self.roberta_model(question_tokenized, attention_mask=question_attention_mask)
         last_hidden_states = outputs.last_hidden_state
@@ -228,11 +238,13 @@ class QA_model_EaE_replace(nn.Module):
                                                   self.tkbc_embedding_dim,
                                                   padding_idx=num_entities + num_times)
         self.entity_time_embedding.weight.data[:-1, :].copy_(full_embed_matrix)
+        # print('Random entity/time embeddings!')
         if args.frozen == 1:
             print('Freezing entity/time embeddings')
             self.entity_time_embedding.weight.requires_grad = False
         else:
             print('Unfrozen entity/time embeddings')
+        
         # position embedding for transformer
         self.max_seq_length = 100 # randomly defining max length of tokens for question
         self.position_embedding = nn.Embedding(self.max_seq_length, self.tkbc_embedding_dim)
@@ -247,8 +259,11 @@ class QA_model_EaE_replace(nn.Module):
         inverted = ones_tensor - tensor
         return inverted
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entity_mask_padded, question_text):
+    def forward(self, a):
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        entities_times_padded = a[2].cuda()
+        entity_mask_padded = a[3].cuda()
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
         outputs = self.roberta_model(question_tokenized, attention_mask=question_attention_mask)
         last_hidden_states = outputs.last_hidden_state
@@ -279,7 +294,6 @@ class QA_model_EaE_replace(nn.Module):
         scores = torch.matmul(output, self.entity_time_embedding.weight.data[:-1, :].T) # cuz padding idx
         return scores
         
-        
 
 class QA_model_BERT(nn.Module):
     def __init__(self, tkbc_model, args):
@@ -305,8 +319,11 @@ class QA_model_BERT(nn.Module):
         # question_embedding = torch.mean(roberta_last_hidden_states, dim=1)
         return question_embedding
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entities_times_padded_mask, question_text):
+    def forward(self, a):
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        entities_times_padded = a[2].cuda()
+        entities_times_padded_mask = a[3].cuda()
         question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
         scores = self.linear(question_embedding)
 #         scores = self.final_linear(output)
@@ -343,8 +360,8 @@ class QA_model_KnowBERT(nn.Module):
             cls_embeddings = x.transpose(0,1)[0]
             return cls_embeddings
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entities_times_padded_mask, question_text):
+    def forward(self, a):
+        question_text = a[0]
         question_embedding = self.getQuestionEmbedding(question_text)
         scores = self.linear(question_embedding)
 #         scores = self.final_linear(output)
@@ -387,8 +404,11 @@ class QA_model_Only_Embeddings(nn.Module):
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                entities_times_padded, entities_times_padded_mask, question_text):
+    def forward(self, a):
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        entities_times_padded = a[2].cuda()
+        entities_times_padded_mask = a[3].cuda()
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
         sequence = entity_time_embedding
         sequence_length = sequence.shape[1]
@@ -423,8 +443,11 @@ class QA_model_EmbedKGQA(nn.Module):
         self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
 
         if args.lm_frozen == 1:
+            print('Freezing LM params')
             for param in self.roberta_model.parameters():
                 param.requires_grad = False
+        else:
+            print('Unfrozen LM params')
 
         # creating combined embedding of time and entities (entities come first)
         self.tkbc_model = tkbc_model
@@ -436,6 +459,21 @@ class QA_model_EmbedKGQA(nn.Module):
         self.entity_time_embedding = nn.Embedding(num_entities + num_times, self.tkbc_embedding_dim)
         self.entity_time_embedding.weight.data.copy_(full_embed_matrix)
         self.num_entities = num_entities
+        self.num_times = num_times
+
+        self.answer_type_embedding = nn.Embedding(2, num_entities + num_times)
+        x = torch.zeros(num_entities + num_times)
+        x[num_entities:] = torch.ones(num_times) * -1e10
+        self.answer_type_embedding.weight.data[0].copy_(x)
+
+        x = torch.zeros(num_entities + num_times)
+        x[:num_entities] = torch.ones(num_entities) * -1e10
+        self.answer_type_embedding.weight.data[1].copy_(x)
+
+        # now freeze this
+        self.answer_type_embedding.weight.requires_grad = False
+
+
         if args.frozen == 1:
             print('Freezing entity/time embeddings')
             self.entity_time_embedding.weight.requires_grad = False
@@ -445,7 +483,8 @@ class QA_model_EmbedKGQA(nn.Module):
             print('Unfrozen entity/time embeddings')
         # print('Random starting embedding')
         self.linear = nn.Linear(768, self.tkbc_embedding_dim) # to project question embedding
-        self.loss = nn.BCELoss(reduction='mean')
+        # self.loss = nn.BCELoss(reduction='mean')
+        self.loss = nn.BCEWithLogitsLoss(reduction='mean')
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
@@ -458,15 +497,13 @@ class QA_model_EmbedKGQA(nn.Module):
         return question_embedding
 
     # scoring function from TComplEx
-    def score_TComplEx(self, head_embedding, tail_embedding, relation_embedding):
-        # lhs = self.embeddings[0](x[:, 0])
-        # rel = self.embeddings[1](x[:, 1])
-        # rhs = self.embeddings[0](x[:, 2])
+    def score_time(self, head_embedding, tail_embedding, relation_embedding):
         lhs = head_embedding
         rhs = tail_embedding
         rel = relation_embedding
 
         time = self.tkbc_model.embeddings[2].weight
+        # time = self.entity_time_embedding.weight
 
         lhs = lhs[:, :self.tkbc_model.rank], lhs[:, self.tkbc_model.rank:]
         rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
@@ -480,19 +517,67 @@ class QA_model_EmbedKGQA(nn.Module):
                  lhs[0] * rel[0] * rhs[1] - lhs[1] * rel[1] * rhs[1]) @ time[1].t()
         )
 
-    def forward(self, question_tokenized, question_attention_mask, 
-                heads, tails, question_text):
+    def score_entity(self, head_embedding, relation_embedding, time_embedding):
+        lhs = head_embedding
+        rel = relation_embedding
+        time = time_embedding
+
+        lhs = lhs[:, :self.tkbc_model.rank], lhs[:, self.tkbc_model.rank:]
+        rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
+        time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
+
+        right = self.tkbc_model.embeddings[0].weight
+        # right = self.entity_time_embedding.weight
+        right = right[:, :self.tkbc_model.rank], right[:, self.tkbc_model.rank:]
+
+        rt = rel[0] * time[0], rel[1] * time[0], rel[0] * time[1], rel[1] * time[1]
+        full_rel = rt[0] - rt[3], rt[1] + rt[2]
+
+        return (
+                       (lhs[0] * full_rel[0] - lhs[1] * full_rel[1]) @ right[0].t() +
+                       (lhs[1] * full_rel[0] + lhs[0] * full_rel[1]) @ right[1].t()
+               )
+
+    # def forward(self, question_tokenized, question_attention_mask, 
+    #             heads, times, question_text):
+    def forward(self, a):
+
+        question_tokenized = a[0].cuda()
+        question_attention_mask = a[1].cuda()
+        heads = a[2].cuda()
+        tails = a[3].cuda()
+        times = a[4].cuda()
+        answer_types = a[5].cuda()
+
         head_embedding = self.entity_time_embedding(heads)
         tail_embedding = self.entity_time_embedding(tails)
+        time_embedding = self.entity_time_embedding(times)
         question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
         relation_embedding = self.linear(question_embedding)
-        scores_time = self.score_TComplEx(head_embedding, tail_embedding, relation_embedding)
+        scores_time = self.score_time(head_embedding, tail_embedding, relation_embedding)
+        scores_entity = self.score_entity(head_embedding, relation_embedding, time_embedding)
+
+        scores = torch.cat((scores_entity, scores_time), dim=1)
+
+        # now add mask for entity/time type answer
+
+        scores += self.answer_type_embedding(answer_types)
+
+        # x = torch.Tensor([-float("Inf")]).cuda()
+        # x = x.expand((heads.shape[0], self.num_times))
+        # scores = torch.cat((scores_entity, x), dim=1)
+        # scores = scores_entity
+
         # scores_time has shape (batch_size, num_timestamps)
         # we need to return (batch_size, num_timestamps + num_entities)
         # so append array of size num_timestamps with value -inf
-        x = torch.Tensor([-float("Inf")]).cuda()
-        x = x.expand((heads.shape[0], self.num_entities))
-        scores = torch.cat((x, scores_time), dim=1)
+        # x = torch.Tensor([-float("Inf")]).cuda()
+        # x = torch.Tensor([-1e10]).cuda()
+        # x = x.expand((heads.shape[0], self.num_entities))
+        # scores_time[:, :self.num_entities] = x
+        # scores = scores_time
+        # scores = torch.cat((x, scores_time), dim=1)
+        # scores = scores_time
         # somehow BCE logits loss not working with inf, so using normal BCE after sigmoid
-        scores = torch.sigmoid(scores)
+        # scores = torch.sigmoid(scores)
         return scores

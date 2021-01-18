@@ -123,7 +123,7 @@ def predictTime(question, model, all_dicts, k=1):
             topk_set.add(id2ts[x.item()][0])
     return topk_set
 
-def predictHead(question, model, all_dicts, k=1):
+def predictTail(question, model, all_dicts, k=1):
     entities = list(question['entities'])
     times = list(question['times'])
     target_type = 'simple_entity'
@@ -168,7 +168,7 @@ def checkIfTkbcEmbeddingsTrained(tkbc_model, dataset_name, split='test'):
         for i in tqdm(range(len(questions))):
             this_question_type = questions[i]['type']
             if question_type == this_question_type and question_type == 'simple_entity':
-                which_question_function = predictHead
+                which_question_function = predictTail
             elif question_type == this_question_type and question_type == 'simple_time':
                 which_question_function = predictTime
             else:

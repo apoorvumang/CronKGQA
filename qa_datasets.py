@@ -259,8 +259,11 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         print('Preparing data for split %s' % split)
         # self.data = self.data[:30000]
         new_data = []
+        # qn_type = 'simple_time'
+        qn_type = 'simple_entity'
+        print('Only {} questions'.format(qn_type))
         for qn in self.data:
-            if qn['type'] == 'simple_time':
+            if qn['type'] == qn_type:
                 new_data.append(qn)
         self.data = new_data
         self.prepared_data = self.prepare_data(self.data)
@@ -275,25 +278,49 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         question_text = []
         heads = []
         tails = []
+        times = []
+        answer_types = []
         num_total_entities = len(self.all_dicts['ent2id'])
         answers_arr = []
         ent2id = self.all_dicts['ent2id']
         for question in data:
-            qtype = question['type']
-            if qtype != 'simple_time':
-                continue
+            # if qtype != 'simple_time':
+            #     continue
             # first pp is question text
             # needs to be changed after making PD dataset
             # to randomly sample from list
             q_text = question['paraphrases'][0]
             
-            annotation = question['annotation']
-            head = ent2id[annotation['head']]
-            tail = ent2id[annotation['tail']]
+            # annotation = question['annotation']
+            # head = ent2id[annotation['head']]
+            # tail = ent2id[annotation['tail']]
+            entities = list(question['entities'])
+            head = ent2id[entities[0]] # take an entity
+            if len(entities) > 1:
+                tail = ent2id[entities[1]]
+            else:
+                tail = ent2id[entities[0]]
+            times_in_question = question['times']
+            if len(times_in_question) > 0:
+                time = self.timesToIds(times_in_question)[0] # take a time. if no time then 0
+                # exit(0)
+            else:
+                # print('No time in qn!')
+                time = 0
+            
+            time += num_total_entities
+
+            # used for masking in loss
+            if question['answer_type'] == 'entity':
+                answer_type = 0
+            else:
+                answer_type = 1
 
             heads.append(head)
+            times.append(time)
             tails.append(tail)
             question_text.append(q_text)
+            answer_types.append(answer_type)
             
             if question['answer_type'] == 'entity':
                 answers = self.entitiesToIds(question['answers'])
@@ -306,7 +333,14 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         return {'question_text': question_text, 
                 'head': heads, 
                 'tail': tails,
+                'time': times,
+                'answer_type': answer_types,
                 'answers_arr': answers_arr}
+
+        # return {'question_text': question_text, 
+        #         'head': heads, 
+        #         'tail': tails,
+        #         'answers_arr': answers_arr}
 
     def __len__(self):
         return len(self.prepared_data['question_text'])
@@ -316,19 +350,21 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         question_text = data['question_text'][index]
         head = data['head'][index]
         tail = data['tail'][index]
+        time = data['time'][index]
+        answer_type = data['answer_type'][index]
         answers_arr = data['answers_arr'][index]
         answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        
-        return question_text, head, tail, answers_khot
+        return question_text, head, tail, time, answer_type, answers_khot
 
     def _collate_fn(self, items):
         batch_sentences = [item[0] for item in items]
         b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
         heads = torch.from_numpy(np.array([item[1] for item in items]))
-        
         tails = torch.from_numpy(np.array([item[2] for item in items]))
-        answers_khot = torch.stack([item[3] for item in items])
-        return b['input_ids'], b['attention_mask'], heads, tails, answers_khot, batch_sentences
+        times = torch.from_numpy(np.array([item[3] for item in items]))
+        answer_types = torch.from_numpy(np.array([item[4] for item in items]))
+        answers_khot = torch.stack([item[5] for item in items])
+        return b['input_ids'], b['attention_mask'], heads, tails, times, answer_types, answers_khot 
 
 class QA_Dataset_model1(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
@@ -366,17 +402,12 @@ class QA_Dataset_model1(QA_Dataset):
             b = {}
             b['input_ids'] = torch.zeros(1)
             b['attention_mask'] = torch.zeros(1)
-        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot, batch_sentences
+        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot # removed batch_sentences return
 
-class QA_Dataset_model1_reduced(QA_Dataset):
+class QA_Dataset_knowbert(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
-        new_data = []
-        for qn in self.data:
-            if qn['type'] == 'simple_time':
-                new_data.append(qn)
-        self.data = new_data
         self.prepared_data = self.prepare_data(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
@@ -388,28 +419,14 @@ class QA_Dataset_model1_reduced(QA_Dataset):
     def __getitem__(self, index):
         data = self.prepared_data
         question_text = data['question_text'][index]
-        entity_time_ids = data['entity_time_ids'][index]
         answers_arr = data['answers_arr'][index]
-
         answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        # max 5 entities in question?
-        entities_times_padded, entities_times_padded_mask = self.padding_tensor([entity_time_ids], 5)
-        entities_times_padded = entities_times_padded.squeeze()
-        entities_times_padded_mask = entities_times_padded_mask.squeeze()
-        return question_text, entities_times_padded, entities_times_padded_mask, answers_khot
+        return question_text, answers_khot
 
     def _collate_fn(self, items):
-        entities_times_padded = torch.stack([item[1] for item in items])
-        entities_times_padded_mask = torch.stack([item[2] for item in items])
-        answers_khot = torch.stack([item[3] for item in items])
         batch_sentences = [item[0] for item in items]
-        if self.tokenization_needed == True:
-            b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
-        else:
-            b = {}
-            b['input_ids'] = torch.zeros(1)
-            b['attention_mask'] = torch.zeros(1)
-        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot, batch_sentences
+        answers_khot = torch.stack([item[1] for item in items])
+        return batch_sentences, answers_khot
 
 
 class QA_Dataset_EaE(QA_Dataset):
@@ -581,7 +598,7 @@ class QA_Dataset_EaE(QA_Dataset):
         # mask for this is same as attention mask for sentences
         answers_khot = torch.stack([item[3] for item in items])
         
-        return input_ids, attention_mask, entity_time_ids_padded, entity_time_ids_padded_mask, answers_khot, batch_sentences
+        return input_ids, attention_mask, entity_time_ids_padded, entity_time_ids_padded_mask, answers_khot #, batch_sentences
 
 # replace entity mention tokens
 # rather than add + layernorm
@@ -769,4 +786,4 @@ class QA_Dataset_EaE_replace(QA_Dataset):
 
         answers_khot = torch.stack([item[4] for item in items])
         
-        return input_ids, attention_mask, entity_time_ids_padded, entity_mask_padded, answers_khot, batch_sentences
+        return input_ids, attention_mask, entity_time_ids_padded, entity_mask_padded, answers_khot #, batch_sentences
