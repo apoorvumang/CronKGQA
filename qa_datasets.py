@@ -258,14 +258,14 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         # self.data = self.data[:30000]
-        new_data = []
-        # qn_type = 'simple_time'
-        qn_type = 'simple_entity'
-        print('Only {} questions'.format(qn_type))
-        for qn in self.data:
-            if qn['type'] == qn_type:
-                new_data.append(qn)
-        self.data = new_data
+        # new_data = []
+        # # qn_type = 'simple_time'
+        # qn_type = 'simple_entity'
+        # print('Only {} questions'.format(qn_type))
+        # for qn in self.data:
+        #     if qn['type'] == qn_type:
+        #         new_data.append(qn)
+        # self.data = new_data
         self.prepared_data = self.prepare_data(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
@@ -279,7 +279,6 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         heads = []
         tails = []
         times = []
-        answer_types = []
         num_total_entities = len(self.all_dicts['ent2id'])
         answers_arr = []
         ent2id = self.all_dicts['ent2id']
@@ -294,12 +293,16 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
             # annotation = question['annotation']
             # head = ent2id[annotation['head']]
             # tail = ent2id[annotation['tail']]
-            entities = list(question['entities'])
-            head = ent2id[entities[0]] # take an entity
+            # entities = list(question['entities'])
+
+            entities_list_with_locations = self.getEntitiesLocations(question)
+            entities_list_with_locations.sort()
+            entities = [id for location, id in entities_list_with_locations] # ordering necessary otherwise set->list conversion causes randomness
+            head = entities[0] # take an entity
             if len(entities) > 1:
-                tail = ent2id[entities[1]]
+                tail = entities[1]
             else:
-                tail = ent2id[entities[0]]
+                tail = entities[0]
             times_in_question = question['times']
             if len(times_in_question) > 0:
                 time = self.timesToIds(times_in_question)[0] # take a time. if no time then 0
@@ -309,18 +312,10 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
                 time = 0
             
             time += num_total_entities
-
-            # used for masking in loss
-            if question['answer_type'] == 'entity':
-                answer_type = 0
-            else:
-                answer_type = 1
-
             heads.append(head)
             times.append(time)
             tails.append(tail)
             question_text.append(q_text)
-            answer_types.append(answer_type)
             
             if question['answer_type'] == 'entity':
                 answers = self.entitiesToIds(question['answers'])
@@ -334,16 +329,19 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
                 'head': heads, 
                 'tail': tails,
                 'time': times,
-                'answer_type': answer_types,
                 'answers_arr': answers_arr}
 
         # return {'question_text': question_text, 
         #         'head': heads, 
         #         'tail': tails,
         #         'answers_arr': answers_arr}
+    def print_prepared_data(self):
+        for k, v in self.prepared_data.items():
+            print(k, v)
 
     def __len__(self):
-        return len(self.prepared_data['question_text'])
+        return len(self.data)
+        # return len(self.prepared_data['question_text'])
 
     def __getitem__(self, index):
         data = self.prepared_data
@@ -351,10 +349,9 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         head = data['head'][index]
         tail = data['tail'][index]
         time = data['time'][index]
-        answer_type = data['answer_type'][index]
         answers_arr = data['answers_arr'][index]
-        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        return question_text, head, tail, time, answer_type, answers_khot
+        answers_single = random.choice(answers_arr)
+        return question_text, head, tail, time, answers_single #,answers_khot
 
     def _collate_fn(self, items):
         batch_sentences = [item[0] for item in items]
@@ -362,9 +359,8 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         heads = torch.from_numpy(np.array([item[1] for item in items]))
         tails = torch.from_numpy(np.array([item[2] for item in items]))
         times = torch.from_numpy(np.array([item[3] for item in items]))
-        answer_types = torch.from_numpy(np.array([item[4] for item in items]))
-        answers_khot = torch.stack([item[5] for item in items])
-        return b['input_ids'], b['attention_mask'], heads, tails, times, answer_types, answers_khot 
+        answers_single = torch.from_numpy(np.array([item[4] for item in items]))
+        return b['input_ids'], b['attention_mask'], heads, tails, times, answers_single 
 
 class QA_Dataset_model1(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
@@ -383,26 +379,27 @@ class QA_Dataset_model1(QA_Dataset):
         question_text = data['question_text'][index]
         entity_time_ids = data['entity_time_ids'][index]
         answers_arr = data['answers_arr'][index]
-
-        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        answers_single = random.choice(answers_arr)
+        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
         # max 5 entities in question?
         entities_times_padded, entities_times_padded_mask = self.padding_tensor([entity_time_ids], 5)
         entities_times_padded = entities_times_padded.squeeze()
         entities_times_padded_mask = entities_times_padded_mask.squeeze()
-        return question_text, entities_times_padded, entities_times_padded_mask, answers_khot
+        return question_text, entities_times_padded, entities_times_padded_mask, answers_single #, answers_khot
 
     def _collate_fn(self, items):
         entities_times_padded = torch.stack([item[1] for item in items])
         entities_times_padded_mask = torch.stack([item[2] for item in items])
-        answers_khot = torch.stack([item[3] for item in items])
+        # answers_khot = torch.stack([item[3] for item in items])
         batch_sentences = [item[0] for item in items]
+        answers_single = torch.from_numpy(np.array([item[3] for item in items]))
         if self.tokenization_needed == True:
             b = self.tokenizer(batch_sentences, padding=True, truncation=True, return_tensors="pt")
         else:
             b = {}
             b['input_ids'] = torch.zeros(1)
             b['attention_mask'] = torch.zeros(1)
-        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_khot # removed batch_sentences return
+        return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_single #answers_khot 
 
 class QA_Dataset_knowbert(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
@@ -420,13 +417,15 @@ class QA_Dataset_knowbert(QA_Dataset):
         data = self.prepared_data
         question_text = data['question_text'][index]
         answers_arr = data['answers_arr'][index]
-        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        return question_text, answers_khot
+        answers_single = random.choice(answers_arr)
+        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        return question_text, answers_single
 
     def _collate_fn(self, items):
         batch_sentences = [item[0] for item in items]
-        answers_khot = torch.stack([item[1] for item in items])
-        return batch_sentences, answers_khot
+        # answers_khot = torch.stack([item[1] for item in items])
+        answers_single = torch.from_numpy(np.array([item[1] for item in items]))
+        return batch_sentences, answers_single
 
 
 class QA_Dataset_EaE(QA_Dataset):
@@ -562,9 +561,10 @@ class QA_Dataset_EaE(QA_Dataset):
         question_text = data['question_text'][index]
         entity_time_ids = np.array(data['entity_time_ids'][index], dtype=np.long)
         answers_arr = data['answers_arr'][index]
-        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        answers_single = random.choice(answers_arr)
         tokenized_question = data['tokenized_question'][index]
-        return question_text, tokenized_question, entity_time_ids, answers_khot
+        return question_text, tokenized_question, entity_time_ids, answers_single
 
     def pad_for_batch(self, to_pad, padding_val, dtype=np.long):
         padded = np.ones([len(to_pad),len(max(to_pad,key = lambda x: len(x)))], dtype=dtype) * padding_val
@@ -596,9 +596,10 @@ class QA_Dataset_EaE(QA_Dataset):
         entity_time_ids_padded_mask = ~(attention_mask.bool())
 
         # mask for this is same as attention mask for sentences
-        answers_khot = torch.stack([item[3] for item in items])
+        # answers_khot = torch.stack([item[3] for item in items])
+        answers_single = torch.from_numpy(np.array([item[3] for item in items]))
         
-        return input_ids, attention_mask, entity_time_ids_padded, entity_time_ids_padded_mask, answers_khot #, batch_sentences
+        return input_ids, attention_mask, entity_time_ids_padded, entity_time_ids_padded_mask, answers_single
 
 # replace entity mention tokens
 # rather than add + layernorm
@@ -745,10 +746,11 @@ class QA_Dataset_EaE_replace(QA_Dataset):
         question_text = data['question_text'][index]
         entity_time_ids = np.array(data['entity_time_ids'][index], dtype=np.long)
         answers_arr = data['answers_arr'][index]
-        answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
+        answers_single = random.choice(answers_arr)
+        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
         tokenized_question = data['tokenized_question'][index]
         entity_mask = data['entity_mask'][index]
-        return question_text, tokenized_question, entity_time_ids, entity_mask, answers_khot
+        return question_text, tokenized_question, entity_time_ids, entity_mask, answers_single
 
     def pad_for_batch(self, to_pad, padding_val, dtype=np.long):
         padded = np.ones([len(to_pad),len(max(to_pad,key = lambda x: len(x)))], dtype=dtype) * padding_val
@@ -766,7 +768,6 @@ class QA_Dataset_EaE_replace(QA_Dataset):
         return mask
     
     def _collate_fn(self, items):
-        batch_sentences = [item[0] for item in items]
         # please don't tokenize again
         # b = self.tokenizer(batch_sentences, padding=True, truncation=False, return_tensors="pt")
 
@@ -784,6 +785,7 @@ class QA_Dataset_EaE_replace(QA_Dataset):
         # can make foll mask in forward function using attention mask
         # entity_time_ids_padded_mask = ~(attention_mask.bool())
 
-        answers_khot = torch.stack([item[4] for item in items])
+        # answers_khot = torch.stack([item[4] for item in items])
+        answers_single = torch.from_numpy(np.array([item[4] for item in items]))
         
-        return input_ids, attention_mask, entity_time_ids_padded, entity_mask_padded, answers_khot #, batch_sentences
+        return input_ids, attention_mask, entity_time_ids_padded, entity_mask_padded, answers_single

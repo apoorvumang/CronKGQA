@@ -6,7 +6,7 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace
+from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace, QA_model_EmbedKGQA_single
 from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_EaE_replace, QA_Dataset_knowbert
 from torch.utils.data import Dataset, DataLoader
 import utils
@@ -14,6 +14,7 @@ from tqdm import tqdm
 from utils import loadTkbcModel
 from collections import defaultdict
 from datetime import datetime
+from collections import OrderedDict
 
 parser = argparse.ArgumentParser(
     description="Temporal KGQA"
@@ -175,11 +176,13 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         eval_accuracy = hits_at_k/total
         if k == k_for_reporting:
             eval_accuracy_for_reporting = eval_accuracy
-        eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
+        # eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
+        eval_log.append(str(round(eval_accuracy, 3)))
 
 
-        # for dictionary in [question_types_count, simple_complex_count, entity_time_count]:
-        for dictionary in [simple_complex_count, entity_time_count]:
+        question_types_count = dict(sorted(question_types_count.items(), key=lambda x: x[0].lower()))
+        for dictionary in [question_types_count]:
+        # for dictionary in [simple_complex_count, entity_time_count]:
             for key, value in dictionary.items():
                 hits_at_k = sum(value)/len(value)
                 s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
@@ -187,6 +190,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
                     hits_at_k = round(hits_at_k, 3),
                     num_questions = len(value)
                 ) 
+                # s = str(round(hits_at_k, 3))
                 eval_log.append(s)
             eval_log.append('')        
 
@@ -194,6 +198,123 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     for s in eval_log:
         print(s)
     return eval_accuracy_for_reporting, eval_log
+
+# def predict_single(qa_model, dataset, batch_size = 128, split='valid', k=10):
+
+def predict_single(qa_model, dataset, ids, batch_size = 128, split='valid', k=10):
+    num_workers = 4
+    qa_model.eval()
+    eval_log = []
+    k_for_reporting = k # not change name in fn signature since named param used in places
+    # k_list = [1, 3, 10]
+    k_list = [1, 10]
+    max_k = max(k_list)
+    eval_log.append("Split %s" % (split))
+    print('Evaluating split', split)
+
+    # id = 13799        
+        
+    prepared_data = {}
+    for k, v in dataset.prepared_data.items():
+        prepared_data[k] = [v[i] for i in ids]
+    dataset.prepared_data = prepared_data
+    dataset.data = [dataset.data[i] for i in ids]
+
+    dataset.print_prepared_data()
+
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, 
+                            num_workers=num_workers, collate_fn=dataset._collate_fn)
+    topk_answers = []
+    total_loss = 0
+    loader = tqdm(data_loader, total=len(data_loader), unit="batches")
+    
+    for i_batch, a in enumerate(loader):
+        # if size of split is multiple of batch size, we need this
+        # todo: is there a more elegant way?
+        if i_batch * batch_size == len(dataset.data):
+            break
+        answers_khot = a[-1] # last one assumed to be target
+        scores = qa_model.forward(a)
+        for s in scores:
+            pred = dataset.getAnswersFromScores(s, k=max_k)
+            topk_answers.append(pred)
+        loss = qa_model.loss(scores, answers_khot.cuda())
+        total_loss += loss.item()
+    eval_log.append('Loss %f' % total_loss)
+    eval_log.append('Eval batch size %d' % batch_size)
+
+    for i in range(len(dataset.data)):
+        question = dataset.data[i]
+        predicted_answers = topk_answers[i]
+        actual_answers = question['answers']
+
+        if question['answer_type'] == 'entity':
+            actual_answers = [dataset.getEntityToText(x) for x in actual_answers]
+            predicted_answers = [dataset.getEntityToText(x) for x in predicted_answers]
+
+        print(question['paraphrases'][0])
+        print('Actual answers', actual_answers)
+        print('Predicted answers', predicted_answers)
+        print()
+    
+    
+
+    # do eval for each k in k_list
+    # want multiple hit@k
+    eval_accuracy_for_reporting = 0
+    for k in k_list:
+        hits_at_k = 0
+        total = 0
+        question_types_count = defaultdict(list)
+        simple_complex_count = defaultdict(list)
+        entity_time_count = defaultdict(list)
+
+        for i, question in enumerate(dataset.data):
+            actual_answers = question['answers']
+            question_type = question['type']
+            if 'simple' in question_type:
+                simple_complex_type = 'simple'
+            else:
+                simple_complex_type = 'complex'
+            entity_time_type = question['answer_type']
+            # question_type = question['template']
+            predicted = topk_answers[i][:k]
+            if len(set(actual_answers).intersection(set(predicted))) > 0:
+                val_to_append = 1
+                hits_at_k += 1
+            else:
+                val_to_append = 0
+            question_types_count[question_type].append(val_to_append)
+            simple_complex_count[simple_complex_type].append(val_to_append)
+            entity_time_count[entity_time_type].append(val_to_append)
+            total += 1
+
+        eval_accuracy = hits_at_k/total
+        if k == k_for_reporting:
+            eval_accuracy_for_reporting = eval_accuracy
+        # eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
+        eval_log.append(str(round(eval_accuracy, 3)))
+
+
+        question_types_count = dict(sorted(question_types_count.items(), key=lambda x: x[0].lower()))
+        for dictionary in [question_types_count]:
+        # for dictionary in [simple_complex_count, entity_time_count]:
+            for key, value in dictionary.items():
+                hits_at_k = sum(value)/len(value)
+                s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
+                    q_type = key,
+                    hits_at_k = round(hits_at_k, 3),
+                    num_questions = len(value)
+                ) 
+                # s = str(round(hits_at_k, 3))
+                eval_log.append(s)
+            eval_log.append('')        
+
+    # print eval log as well as return it
+    for s in eval_log:
+        print(s)
+    return eval_accuracy_for_reporting, eval_log
+
 
 def append_log_to_file(eval_log, epoch, filename):
     f = open(filename, 'a+')
@@ -334,6 +455,11 @@ elif args.model == 'embedkgqa':
     qa_model = QA_model_EmbedKGQA(tkbc_model, args)
     dataset = QA_Dataset_EmbedKGQA(split='train', dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+elif args.model == 'embedkgqa_single':
+    qa_model = QA_model_EmbedKGQA_single(tkbc_model, args)
+    dataset = QA_Dataset_EmbedKGQA(split='train', dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
@@ -355,7 +481,9 @@ else:
 qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
-    score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
+    ids = [762, 13799, 22986, 26071]
+    score, log = predict_single(qa_model, valid_dataset, ids=ids, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
+    # score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
 train(qa_model, dataset, valid_dataset, args)
