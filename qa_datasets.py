@@ -33,9 +33,12 @@ class QA_Dataset(Dataset):
         # questions = self.loadJSON(filename)
         # self.tokenizer_class = RobertaTokenizer
         # self.pretrained_weights = 'roberta-base'
-        self.tokenizer_class = DistilBertTokenizer 
+        
         # self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
-        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased') # using fast causes some warning cuz of parallelization in dataloader
+        self.tokenizer_class = DistilBertTokenizer 
+        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+        # self.tokenizer_class = RobertaTokenizer 
+        # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
         self.all_dicts = utils.getAllDicts(dataset_name)
         print('Total questions = ', len(questions))
         self.data = questions
