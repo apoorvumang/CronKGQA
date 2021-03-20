@@ -139,6 +139,22 @@ class QA_Dataset(Dataset):
                 time = self.all_dicts['id2ts'][time_id]
                 answers.append(time[0])
         return answers
+    
+    def getAnswersFromScoresWithScores(self, scores, largest=True, k=10):
+        s, ind = torch.topk(scores, k, largest=largest)
+        predict = ind
+        answers = []
+        for a_id in predict:
+            a_id = a_id.item()
+            type = self.getIdType(a_id)
+            if type == 'entity':
+                # answers.append(self.getEntityIdToText(a_id))
+                answers.append(self.getEntityIdToWdId(a_id))
+            else:
+                time_id = a_id - len(self.all_dicts['ent2id'])
+                time = self.all_dicts['id2ts'][time_id]
+                answers.append(time[0])
+        return s, answers
 
     # from pytorch Transformer:
     # If a BoolTensor is provided, the positions with the value of True will be ignored 

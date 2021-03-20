@@ -39,3 +39,9 @@ Note: If you get an error about not having GPU support, please install pytorch a
 ```
 conda install pytorch torchvision torchaudio cudatoolkit=9.2 -c pytorch
 ```
+
+## Investigating results
+
+Use the branch 'investigate_results' and run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
+
+The notebook 'cronkgqa_testing.ipynb' can be used to test a model's responses to any textual question, provided you give the list of entities and times in the question as well - this is needed since perfect entity linking is assumed. You can explore the dataset for questions which have entity annotation and modify those questions. You can also make a reverse dict of ``data/wikidata_big/kg/wd_id2entity_text.txt`` and search for wikidata ids of an entity that you want.
