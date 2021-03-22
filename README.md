@@ -21,7 +21,7 @@ conda install --file requirements.txt -c conda-forge
 
 Dataset: ``curl http://transfer.sh/6Nm27/data.zip -o data.zip``
 
-Models: ``curl http://transfer.sh/10EKIn/data.zip -o models.zip``
+Models: ``curl http://transfer.sh/10EKIn/models.zip -o models.zip``
 
 Unzip these in the root directory.
 
