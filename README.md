@@ -13,6 +13,17 @@ Install tkbc requirements and setup tkbc
 conda install --file requirements_tkbc.txt -c pytorch
 python setup_tkbc.py install
 ```
+Install KnowBERT (https://github.com/allenai/kb). You can follow instructions on their repo if you prefer (for up-to-date instructions), except
+don't create a new conda environment.
+```
+git clone git@github.com:allenai/kb.git
+cd kb
+pip install -r requirements.txt
+python -c "import nltk; nltk.download('wordnet')"
+python -m spacy download en_core_web_sm
+pip install --editable .
+
+```
 Install Temporal KGQA requirements
 ```
 conda install --file requirements.txt -c conda-forge
