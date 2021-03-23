@@ -1,5 +1,5 @@
 # Temporal_KGQA
-Temporal KGQA
+Note: If you face any installation issues, please create a new issue or email me at apoorvsaxena@iisc.ac.in . Even if you are able to resolve the issue on your own, it will be helpful for me since I can make the necessary changes so as to make installation easier for any future users.
 
 ## Installation
 
