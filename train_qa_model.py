@@ -181,7 +181,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         eval_accuracy = hits_at_k/total
         if k == k_for_reporting:
             eval_accuracy_for_reporting = eval_accuracy
-        # eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
+        eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
         eval_log.append(str(round(eval_accuracy, 3)))
 
 
@@ -193,12 +193,12 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         # for dictionary in [simple_complex_count, entity_time_count]:
             for key, value in dictionary.items():
                 hits_at_k = sum(value)/len(value)
-                # s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
-                #     q_type = key,
-                #     hits_at_k = round(hits_at_k, 3),
-                #     num_questions = len(value)
-                # ) 
-                s = str(round(hits_at_k, 3))
+                s = '{q_type} \t {hits_at_k} \t total questions: {num_questions}'.format(
+                    q_type = key,
+                    hits_at_k = round(hits_at_k, 3),
+                    num_questions = len(value)
+                ) 
+                # s = str(round(hits_at_k, 3))
                 eval_log.append(s)
             eval_log.append('')        
 
@@ -529,9 +529,9 @@ if args.mode == 'eval':
     # ids = [17018, 11062, 28012, 14291, 22936, 16090, 10920, 27255, 1166, 28861] # before_after
     # ids = [7126, 28946, 13207, 7039, 10648, 13379, 29142, 22030, 13903, 7455] # simple_time
     # ids = [5256, 21441, 5708, 14718, 2731, 15483, 16049, 23190, 19727, 26019] # first_last
-    ids = [0]
-    score, log = predict_single(qa_model, valid_dataset, ids=ids, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
-    # score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
+    # ids = [0]
+    # score, log = predict_single(qa_model, valid_dataset, ids=ids, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
+    score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
 train(qa_model, dataset, valid_dataset, args)
