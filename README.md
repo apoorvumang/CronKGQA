@@ -3,8 +3,11 @@ Note: If you face any installation issues, please create a new issue or email me
 
 ## Installation
 
-Create a conda environment
+Clone and create a conda environment
 ``` 
+git clone git@github.com:apoorvumang/Temporal_KGQA.git
+cd Temporal_KGQA
+git checkout investigate_results
 conda create --prefix ./tkgqa_env 
 conda activate ./tkgqa_env
 ```
