@@ -22,36 +22,53 @@ pip install -r requirements.txt
 python -c "import nltk; nltk.download('wordnet')"
 python -m spacy download en_core_web_sm
 pip install --editable .
-
 ```
+
 Install Temporal KGQA requirements
 ```
+cd ..
 conda install --file requirements.txt -c conda-forge
 ```
+
 ## Dataset and pretrained models download
+```
+curl http://transfer.sh/6Nm27/data.zip -o data.zip
+curl http://transfer.sh/iQxhN/models.zip -o models.zip
+unzip -q data.zip && unzip -q models.zip
+rm data.zip && rm models.zip
+```
 
-Dataset: ``curl http://transfer.sh/6Nm27/data.zip -o data.zip``
-
-Models: ``curl http://transfer.sh/10EKIn/models.zip -o models.zip``
-
-Unzip these in the root directory.
+## Hack to fix misc errors
+```
+pip install scikit-learn==0.22.2
+mkdir results && mkdir results/wikidata_big
+```
 
 ## Running the code
 
 To generate tkbc embeddings, you can run something like
 
 ```
-CUDA_VISIBLE_DEVICES=5 python tkbc/learner.py --dataset wikidata_small --model \
-TComplEx --rank 156 --emb_reg 1e-2 --time_reg 1e-2 \
---save_to tkbc_model_60k_fulltimestamp.ckpt
+TODO: add command with right hyperparams for training the temporal KGE
 ```
 
-Finally you can run training of QA model using these trained tkbc embeddings
+Finally you can run training of QA model using these trained tkbc embeddings. embedkgqa model = cronkgqa (will fix naming etc. soon)
 ```
-CUDA_VISIBLE_DEVICES=5 python ./train_qa_model.py --frozen 1 --eval_k 1 \
---max_epochs 500 --lr 0.00002 --batch_size 100 --save_to output_model \
---tkbc_model_file tkbc_model_60k_fulltimestamp.ckpt
-```
+ CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py --frozen 1 --eval_k 1 --max_epochs 200 \
+ --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tkbc_model_17dec.ckpt \
+ --dataset wikidata_big --valid_freq 3 --model embedkgqa --valid_batch_size 50  \
+ --save_to temp --lm_frozen 1 --eval_split valid
+ ```
+ 
+ Evaluating the pretrained model (CronKGQA):
+ ```
+  CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py \
+ --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
+ --dataset wikidata_big --model embedkgqa --valid_batch_size 50  \
+ --load_from embedkgqa_dual_frozen_lm_fix_order_ce --eval_split test
+ ```
+
+Please explore the qa_models.py file for other models, you can change the model by providing the --model parameter.
 
 Note: If you get an error about not having GPU support, please install pytorch according to the CUDA version installed on the system. For eg. if you have CUDA 9.2
 ```
