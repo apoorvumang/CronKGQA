@@ -16,8 +16,7 @@ Install tkbc requirements and setup tkbc
 conda install --file requirements_tkbc.txt -c pytorch
 python setup_tkbc.py install
 ```
-Install KnowBERT (https://github.com/allenai/kb). You can follow instructions on their repo if you prefer (for up-to-date instructions), except
-don't create a new conda environment.
+Install KnowBERT
 ```
 git clone git@github.com:allenai/kb.git
 cd kb
@@ -35,8 +34,8 @@ conda install --file requirements.txt -c conda-forge
 
 ## Dataset and pretrained models download
 ```
-curl http://transfer.sh/6Nm27/data.zip -o data.zip
-curl http://transfer.sh/iQxhN/models.zip -o models.zip
+wget https://storage.googleapis.com/cronkgqa/data.zip 
+wget https://storage.googleapis.com/cronkgqa/models.zip
 unzip -q data.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
