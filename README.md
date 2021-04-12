@@ -32,6 +32,12 @@ cd ..
 conda install --file requirements.txt -c conda-forge
 ```
 
+Hack to fix misc errors
+```
+pip install scikit-learn==0.22.2
+mkdir results && mkdir results/wikidata_big
+```
+
 ## Dataset and pretrained models download
 ```
 wget https://storage.googleapis.com/cronkgqa/data.zip 
@@ -40,11 +46,6 @@ unzip -q data.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
 
-## Hack to fix misc errors
-```
-pip install scikit-learn==0.22.2
-mkdir results && mkdir results/wikidata_big
-```
 ## Try out pretrained model
 
 Use the branch 'investigate_results' and run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
