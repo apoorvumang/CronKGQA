@@ -11,19 +11,18 @@ git checkout investigate_results
 conda create --prefix ./tkgqa_env python=3.8
 conda activate ./tkgqa_env
 ```
+Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
+```
+which python
+[...]/Temporal_KGQA/tkgqa_env/bin/python
+```
+If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
+
+
 Install tkbc requirements and setup tkbc
 ```
 conda install --file requirements_tkbc.txt -c pytorch
 python setup_tkbc.py install
-```
-Install KnowBERT
-```
-git clone git@github.com:allenai/kb.git
-cd kb
-pip install -r requirements.txt
-python -c "import nltk; nltk.download('wordnet')"
-python -m spacy download en_core_web_sm
-pip install --editable .
 ```
 
 Install Temporal KGQA requirements
@@ -34,7 +33,6 @@ conda install --file requirements.txt -c conda-forge
 
 Hack to fix misc errors
 ```
-pip install scikit-learn==0.22.2
 mkdir results && mkdir results/wikidata_big
 ```
 
