@@ -3,7 +3,6 @@ import torch
 from torch import nn
 import numpy as np
 from tkbc.models import TComplEx
-from sentence_transformers import SentenceTransformer
 from transformers import RobertaModel
 from transformers import DistilBertModel
 # from kb.include_all import ModelArchiveFromParams

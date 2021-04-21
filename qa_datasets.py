@@ -11,7 +11,7 @@ import torch
 import utils
 from tqdm import tqdm
 from transformers import RobertaTokenizer
-from transformers import DistilBertTokenizer, DistilBertTokenizerFast
+from transformers import DistilBertTokenizer
 import random
 from torch.utils.data import Dataset, DataLoader
 # from nltk import word_tokenize
