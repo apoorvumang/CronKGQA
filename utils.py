@@ -9,7 +9,8 @@ from tqdm import tqdm
 
 def loadTkbcModel(tkbc_model_file):
     print('Loading tkbc model from', tkbc_model_file)
-    x = torch.load(tkbc_model_file)
+    device = torch.device('cpu')
+    x = torch.load(tkbc_model_file, map_location=device)
     num_ent = x['embeddings.0.weight'].shape[0]
     num_rel = x['embeddings.1.weight'].shape[0]
     num_ts = x['embeddings.2.weight'].shape[0]
