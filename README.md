@@ -8,7 +8,7 @@ Clone and create a conda environment
 git clone git@github.com:apoorvumang/Temporal_KGQA.git
 cd Temporal_KGQA
 git checkout investigate_results
-conda create --prefix ./tkgqa_env 
+conda create --prefix ./tkgqa_env python=3.8
 conda activate ./tkgqa_env
 ```
 Install tkbc requirements and setup tkbc
