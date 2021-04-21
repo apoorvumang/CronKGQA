@@ -14,7 +14,7 @@ from transformers import RobertaTokenizer
 from transformers import DistilBertTokenizer, DistilBertTokenizerFast
 import random
 from torch.utils.data import Dataset, DataLoader
-from nltk import word_tokenize
+# from nltk import word_tokenize
 
 
 # warning: padding id 0 is being used, can have issue like in Tucker
@@ -419,32 +419,6 @@ class QA_Dataset_model1(QA_Dataset):
             b['input_ids'] = torch.zeros(1)
             b['attention_mask'] = torch.zeros(1)
         return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_single #answers_khot 
-
-class QA_Dataset_knowbert(QA_Dataset):
-    def __init__(self, split, dataset_name, tokenization_needed=True):
-        super().__init__(split, dataset_name, tokenization_needed)
-        print('Preparing data for split %s' % split)
-        self.prepared_data = self.prepare_data(self.data)
-        self.num_total_entities = len(self.all_dicts['ent2id'])
-        self.num_total_times = len(self.all_dicts['ts2id'])
-        self.answer_vec_size = self.num_total_entities + self.num_total_times
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        data = self.prepared_data
-        question_text = data['question_text'][index]
-        answers_arr = data['answers_arr'][index]
-        answers_single = random.choice(answers_arr)
-        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        return question_text, answers_single
-
-    def _collate_fn(self, items):
-        batch_sentences = [item[0] for item in items]
-        # answers_khot = torch.stack([item[1] for item in items])
-        answers_single = torch.from_numpy(np.array([item[1] for item in items]))
-        return batch_sentences, answers_single
 
 
 class QA_Dataset_EaE(QA_Dataset):

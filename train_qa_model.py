@@ -6,8 +6,8 @@ from torch import optim
 import pickle
 import numpy as np
 
-from qa_models import QA_model, QA_model_KnowBERT, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace, QA_model_EmbedKGQA_complex
-from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_EaE_replace, QA_Dataset_knowbert
+from qa_models import QA_model, QA_model_Only_Embeddings, QA_model_BERT, QA_model_EaE, QA_model_EmbedKGQA, QA_model_EaE_replace, QA_model_EmbedKGQA_complex
+from qa_datasets import QA_Dataset, QA_Dataset_model1, QA_Dataset_EaE, QA_Dataset_EmbedKGQA, QA_Dataset_EaE_replace
 from torch.utils.data import Dataset, DataLoader
 import utils
 from tqdm import tqdm
@@ -471,10 +471,6 @@ if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
-elif args.model == 'knowbert':
-    qa_model = QA_model_KnowBERT(tkbc_model, args)
-    dataset = QA_Dataset_knowbert(split=train_split, dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_knowbert(split=args.eval_split, dataset_name=args.dataset_name)
 elif args.model == 'embedding_only':
     qa_model = QA_model_Only_Embeddings(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name, tokenization_needed=False)

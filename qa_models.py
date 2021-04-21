@@ -6,10 +6,10 @@ from tkbc.models import TComplEx
 from sentence_transformers import SentenceTransformer
 from transformers import RobertaModel
 from transformers import DistilBertModel
-from kb.include_all import ModelArchiveFromParams
-from kb.knowbert_utils import KnowBertBatchifier
-from allennlp.common import Params
-from allennlp.nn.util import move_to_device
+# from kb.include_all import ModelArchiveFromParams
+# from kb.knowbert_utils import KnowBertBatchifier
+# from allennlp.common import Params
+# from allennlp.nn.util import move_to_device
 
 
 
@@ -338,44 +338,7 @@ class QA_model_BERT(nn.Module):
         # scores = torch.sigmoid(scores)
         return scores
 
-class QA_model_KnowBERT(nn.Module):
-    def __init__(self, tkbc_model, args):
-        super().__init__()
-        archive_file = 'https://allennlp.s3-us-west-2.amazonaws.com/knowbert/models/knowbert_wiki_wordnet_model.tar.gz'
-        params = Params({"archive_file": archive_file})
-        self.kbert_model = ModelArchiveFromParams.from_params(params=params)
-        if args.lm_frozen == 1:
-            for param in self.kbert_model.parameters():
-                param.requires_grad = False
-        print('KnowBERT model loaded')
-        batch_size = args.batch_size
-        self.batcher = KnowBertBatchifier(archive_file, batch_size=batch_size)
-        print('KnowBERT batcher loaded')
-        num_entities = tkbc_model.embeddings[0].weight.shape[0]
-        num_times = tkbc_model.embeddings[2].weight.shape[0]
-        self.linear = nn.Linear(768, num_entities + num_times)
-        # transformer
-        # print('Random starting embedding')
-        self.loss = nn.CrossEntropyLoss(reduction='mean')
-        return
-
-    def getQuestionEmbedding(self, question_text):
-        for batch in self.batcher.iter_batches(question_text, verbose=False):
-            # model_output['contextual_embeddings'] is (batch_size, seq_len, embed_dim) tensor of top layer activations
-            batch = move_to_device(batch, 0)
-            model_output = self.kbert_model(**batch)
-            x = model_output['contextual_embeddings']
-            cls_embeddings = x.transpose(0,1)[0]
-            return cls_embeddings
-
-    def forward(self, a):
-        question_text = a[0]
-        question_embedding = self.getQuestionEmbedding(question_text)
-        scores = self.linear(question_embedding)
-#         scores = self.final_linear(output)
-        # scores = torch.sigmoid(scores)
-        return scores
-
+ 
 
 class QA_model_Only_Embeddings(nn.Module):
     def __init__(self, tkbc_model, args):
