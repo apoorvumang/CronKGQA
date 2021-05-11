@@ -53,11 +53,6 @@ The notebook 'cronkgqa_testing.ipynb' can be used to test a model's responses to
 
 ## Running the code
 
-To generate tkbc embeddings, you can run something like
-
-```
-TODO: add command with right hyperparams for training the temporal KGE
-```
 
 Finally you can run training of QA model using these trained tkbc embeddings. embedkgqa model = cronkgqa (will fix naming etc. soon)
 ```
@@ -67,7 +62,7 @@ Finally you can run training of QA model using these trained tkbc embeddings. em
  --save_to temp --lm_frozen 1 --eval_split valid
  ```
  
- Evaluating the pretrained model (CronKGQA):
+Evaluating the pretrained model (CronKGQA):
  ```
   CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py \
  --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
