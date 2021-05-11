@@ -77,3 +77,14 @@ Note: If you get an error about not having GPU support, please install pytorch a
 conda install pytorch torchvision torchaudio cudatoolkit=9.2 -c pytorch
 ```
 
+## How to cite
+If you used our work or found it helpful, please use the following citation:
+
+```
+@inproceedings{saxena2021cronkgqa,
+  title={Question Answering over Temporal Knowledge Graphs},
+  author={Saxena, Apoorv and Chakrabarti, Soumen and Talukdar, Partha},
+  booktitle={Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics},
+  year={2021}
+}
+```
