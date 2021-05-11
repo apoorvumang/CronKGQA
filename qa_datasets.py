@@ -11,10 +11,10 @@ import torch
 import utils
 from tqdm import tqdm
 from transformers import RobertaTokenizer
-from transformers import DistilBertTokenizer, DistilBertTokenizerFast
+from transformers import DistilBertTokenizer
 import random
 from torch.utils.data import Dataset, DataLoader
-from nltk import word_tokenize
+# from nltk import word_tokenize
 
 
 # warning: padding id 0 is being used, can have issue like in Tucker
@@ -33,9 +33,12 @@ class QA_Dataset(Dataset):
         # questions = self.loadJSON(filename)
         # self.tokenizer_class = RobertaTokenizer
         # self.pretrained_weights = 'roberta-base'
-        self.tokenizer_class = DistilBertTokenizer 
+        
         # self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
-        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased') # using fast causes some warning cuz of parallelization in dataloader
+        self.tokenizer_class = DistilBertTokenizer 
+        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+        # self.tokenizer_class = RobertaTokenizer 
+        # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
         self.all_dicts = utils.getAllDicts(dataset_name)
         print('Total questions = ', len(questions))
         self.data = questions
@@ -136,6 +139,22 @@ class QA_Dataset(Dataset):
                 time = self.all_dicts['id2ts'][time_id]
                 answers.append(time[0])
         return answers
+    
+    def getAnswersFromScoresWithScores(self, scores, largest=True, k=10):
+        s, ind = torch.topk(scores, k, largest=largest)
+        predict = ind
+        answers = []
+        for a_id in predict:
+            a_id = a_id.item()
+            type = self.getIdType(a_id)
+            if type == 'entity':
+                # answers.append(self.getEntityIdToText(a_id))
+                answers.append(self.getEntityIdToWdId(a_id))
+            else:
+                time_id = a_id - len(self.all_dicts['ent2id'])
+                time = self.all_dicts['id2ts'][time_id]
+                answers.append(time[0])
+        return s, answers
 
     # from pytorch Transformer:
     # If a BoolTensor is provided, the positions with the value of True will be ignored 
@@ -400,32 +419,6 @@ class QA_Dataset_model1(QA_Dataset):
             b['input_ids'] = torch.zeros(1)
             b['attention_mask'] = torch.zeros(1)
         return b['input_ids'], b['attention_mask'], entities_times_padded, entities_times_padded_mask, answers_single #answers_khot 
-
-class QA_Dataset_knowbert(QA_Dataset):
-    def __init__(self, split, dataset_name, tokenization_needed=True):
-        super().__init__(split, dataset_name, tokenization_needed)
-        print('Preparing data for split %s' % split)
-        self.prepared_data = self.prepare_data(self.data)
-        self.num_total_entities = len(self.all_dicts['ent2id'])
-        self.num_total_times = len(self.all_dicts['ts2id'])
-        self.answer_vec_size = self.num_total_entities + self.num_total_times
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        data = self.prepared_data
-        question_text = data['question_text'][index]
-        answers_arr = data['answers_arr'][index]
-        answers_single = random.choice(answers_arr)
-        # answers_khot = self.toOneHot(answers_arr, self.answer_vec_size)
-        return question_text, answers_single
-
-    def _collate_fn(self, items):
-        batch_sentences = [item[0] for item in items]
-        # answers_khot = torch.stack([item[1] for item in items])
-        answers_single = torch.from_numpy(np.array([item[1] for item in items]))
-        return batch_sentences, answers_single
 
 
 class QA_Dataset_EaE(QA_Dataset):

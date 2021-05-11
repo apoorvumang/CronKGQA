@@ -3,6 +3,7 @@ data/*
 tkgqa_env/*
 tkbc/models/*
 tkbc/src_data/*
+tkbc/data/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

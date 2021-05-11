@@ -3,13 +3,12 @@ import torch
 from torch import nn
 import numpy as np
 from tkbc.models import TComplEx
-from sentence_transformers import SentenceTransformer
 from transformers import RobertaModel
 from transformers import DistilBertModel
-from kb.include_all import ModelArchiveFromParams
-from kb.knowbert_utils import KnowBertBatchifier
-from allennlp.common import Params
-from allennlp.nn.util import move_to_device
+# from kb.include_all import ModelArchiveFromParams
+# from kb.knowbert_utils import KnowBertBatchifier
+# from allennlp.common import Params
+# from allennlp.nn.util import move_to_device
 
 
 
@@ -31,6 +30,8 @@ class QA_model(nn.Module):
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
         self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        # self.pretrained_weights = 'roberta-base'
+        # self.roberta_model = RobertaModel.from_pretrained(self.pretrained_weights)
         if args.lm_frozen == 1:
             for param in self.roberta_model.parameters():
                 param.requires_grad = False
@@ -302,8 +303,10 @@ class QA_model_EaE_replace(nn.Module):
 class QA_model_BERT(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
-        self.pretrained_weights = 'distilbert-base-uncased'
-        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        # self.pretrained_weights = 'distilbert-base-uncased'
+        # self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        self.pretrained_weights = 'roberta-base'
+        self.roberta_model = RobertaModel.from_pretrained(self.pretrained_weights)
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
         num_times = tkbc_model.embeddings[2].weight.shape[0]
         self.linear = nn.Linear(768, num_entities + num_times)
@@ -334,44 +337,7 @@ class QA_model_BERT(nn.Module):
         # scores = torch.sigmoid(scores)
         return scores
 
-class QA_model_KnowBERT(nn.Module):
-    def __init__(self, tkbc_model, args):
-        super().__init__()
-        archive_file = 'https://allennlp.s3-us-west-2.amazonaws.com/knowbert/models/knowbert_wiki_wordnet_model.tar.gz'
-        params = Params({"archive_file": archive_file})
-        self.kbert_model = ModelArchiveFromParams.from_params(params=params)
-        if args.lm_frozen == 1:
-            for param in self.kbert_model.parameters():
-                param.requires_grad = False
-        print('KnowBERT model loaded')
-        batch_size = args.batch_size
-        self.batcher = KnowBertBatchifier(archive_file, batch_size=batch_size)
-        print('KnowBERT batcher loaded')
-        num_entities = tkbc_model.embeddings[0].weight.shape[0]
-        num_times = tkbc_model.embeddings[2].weight.shape[0]
-        self.linear = nn.Linear(768, num_entities + num_times)
-        # transformer
-        # print('Random starting embedding')
-        self.loss = nn.CrossEntropyLoss(reduction='mean')
-        return
-
-    def getQuestionEmbedding(self, question_text):
-        for batch in self.batcher.iter_batches(question_text, verbose=False):
-            # model_output['contextual_embeddings'] is (batch_size, seq_len, embed_dim) tensor of top layer activations
-            batch = move_to_device(batch, 0)
-            model_output = self.kbert_model(**batch)
-            x = model_output['contextual_embeddings']
-            cls_embeddings = x.transpose(0,1)[0]
-            return cls_embeddings
-
-    def forward(self, a):
-        question_text = a[0]
-        question_embedding = self.getQuestionEmbedding(question_text)
-        scores = self.linear(question_embedding)
-#         scores = self.final_linear(output)
-        # scores = torch.sigmoid(scores)
-        return scores
-
+ 
 
 class QA_model_Only_Embeddings(nn.Module):
     def __init__(self, tkbc_model, args):
@@ -576,76 +542,82 @@ class QA_model_EmbedKGQA(nn.Module):
         return scores
 
 
-# use only 1 scoring function
-class QA_model_EmbedKGQA_single(QA_model_EmbedKGQA):
+
+class QA_model_EmbedKGQA_complex(nn.Module):
     def __init__(self, tkbc_model, args):
-        super().__init__(tkbc_model, args)
+        super().__init__()
+        self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
+        self.sentence_embedding_dim = 768 # hardwired from roberta?
+        self.pretrained_weights = 'distilbert-base-uncased'
+        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        if args.lm_frozen == 1:
+            print('Freezing LM params')
+            for param in self.roberta_model.parameters():
+                param.requires_grad = False
+        else:
+            print('Unfrozen LM params')
+
+        # creating combined embedding of time and entities (entities come first)
+        self.entity_embedding = tkbc_model.embeddings[0]
+        self.time_embedding = tkbc_model.embeddings[2]
+        self.rank = tkbc_model.rank
+        self.num_entities = tkbc_model.embeddings[0].weight.shape[0]
+        self.num_times = tkbc_model.embeddings[2].weight.shape[0]
+
+        if args.frozen == 1:
+            print('Freezing entity but not time embeddings')
+            self.entity_embedding.weight.requires_grad = False
+        else:
+            print('Unfrozen entity/time embeddings')
+        # print('Random starting embedding')
+        self.linear = nn.Linear(768, self.tkbc_embedding_dim) # to project question embedding
+
+        self.linear1 = nn.Linear(self.tkbc_embedding_dim, self.tkbc_embedding_dim)
+        # self.linear1.weight.data.copy_(torch.eye(self.tkbc_embedding_dim))
+        # self.linear2.weight.data.copy_(torch.eye(self.tkbc_embedding_dim))
+        # self.loss = nn.BCELoss(reduction='mean')
+        self.loss = nn.CrossEntropyLoss(reduction='mean')
+
+        self.dropout = torch.nn.Dropout(0.3)
+        self.bn1 = torch.nn.BatchNorm1d(self.tkbc_embedding_dim)
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
 
-    def score_entity(self, head_embedding, relation_embedding, time_embedding):
+    def getQuestionEmbedding(self, question_tokenized, attention_mask):
+        roberta_last_hidden_states = self.roberta_model(question_tokenized, attention_mask=attention_mask)[0]
+        states = roberta_last_hidden_states.transpose(1,0)
+        cls_embedding = states[0]
+        question_embedding = cls_embedding
+        # question_embedding = torch.mean(roberta_last_hidden_states, dim=1)
+        return question_embedding
+
+
+    def score(self, head_embedding, relation_embedding):
         lhs = head_embedding
         rel = relation_embedding
-        time = time_embedding
 
-        lhs = lhs[:, :self.tkbc_model.rank], lhs[:, self.tkbc_model.rank:]
-        rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
-        time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
+        right = torch.cat((self.entity_embedding.weight, self.time_embedding.weight), dim=0)
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
 
-        # right = self.tkbc_model.embeddings[0].weight
-        right = self.entity_time_embedding.weight
-        
-        right = right[:, :self.tkbc_model.rank], right[:, self.tkbc_model.rank:]
+        right = right[:, :self.rank], right[:, self.rank:]
 
-        rt = rel[0] * time[0], rel[1] * time[0], rel[0] * time[1], rel[1] * time[1]
-        full_rel = rt[0] - rt[3], rt[1] + rt[2]
-
-        return (
-                       (lhs[0] * full_rel[0] - lhs[1] * full_rel[1]) @ right[0].t() +
-                       (lhs[1] * full_rel[0] + lhs[0] * full_rel[1]) @ right[1].t()
-               )
-
-    def score_time(self, head_embedding, tail_embedding, relation_embedding):
-        lhs = head_embedding
-        rhs = tail_embedding
-        rel = relation_embedding
-
-        # time = self.tkbc_model.embeddings[2].weight
-        time = self.entity_time_embedding.weight
-
-        lhs = lhs[:, :self.tkbc_model.rank], lhs[:, self.tkbc_model.rank:]
-        rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
-        rhs = rhs[:, :self.tkbc_model.rank], rhs[:, self.tkbc_model.rank:]
-        time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
-
-        return (
-                (lhs[0] * rel[0] * rhs[0] - lhs[1] * rel[1] * rhs[0] -
-                 lhs[1] * rel[0] * rhs[1] + lhs[0] * rel[1] * rhs[1]) @ time[0].t() +
-                (lhs[1] * rel[0] * rhs[0] - lhs[0] * rel[1] * rhs[0] +
-                 lhs[0] * rel[0] * rhs[1] - lhs[1] * rel[1] * rhs[1]) @ time[1].t()
-        )
+        return (lhs[0] * rel[0] - lhs[1] * rel[1]) @ right[0].transpose(0, 1) + (lhs[0] * rel[1] + lhs[1] * rel[0]) @ right[1].transpose(0, 1)
+               
 
 
+    # def forward(self, question_tokenized, question_attention_mask, 
+    #             heads, times, question_text):
     def forward(self, a):
         question_tokenized = a[0].cuda()
         question_attention_mask = a[1].cuda()
         heads = a[2].cuda()
-        # tails = a[3].cuda()
-        times = a[4].cuda()
 
-
-        head_embedding = self.entity_time_embedding(heads)
-        # tail_embedding = self.entity_time_embedding(tails)
-        time_embedding = self.entity_time_embedding(times)
+        head_embedding = self.entity_embedding(heads)
         question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
         relation_embedding = self.linear(question_embedding)
-
-        # relation_embedding1 = self.dropout(self.bn1(self.linear1(relation_embedding)))
-        relation_embedding2 = self.dropout(self.bn2(self.linear2(relation_embedding)))
-        # scores_time = self.score_time(head_embedding, tail_embedding, relation_embedding1)
-        scores_entity = self.score_entity(head_embedding, relation_embedding2, time_embedding)
-
+        relation_embedding1 = self.dropout(self.bn1(self.linear1(relation_embedding)))
+        scores = self.score(head_embedding, relation_embedding1)
+        # exit(0)
         # scores = torch.cat((scores_entity, scores_time), dim=1)
-        # scores = scores_time
-        scores = scores_entity
         return scores
