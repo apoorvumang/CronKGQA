@@ -109,6 +109,26 @@ parser.add_argument(
     help="Percentage of training data to use."
 )
 
+parser.add_argument(
+    '--combine_all_ents',default="None",choices=["add","mult","None"],
+    help="In score combination, whether to consider all entities or not"
+)
+parser.add_argument(
+    '--simple_time',default=1.0,type=float,help="sampling rate of simple_time ques"
+)
+parser.add_argument(
+    '--before_after',default=1.0,type=float,help="sampling rate of before_after ques"
+)
+parser.add_argument(
+    '--first_last',default=1.0,type=float,help="sampling rate of first_last ques"
+)
+parser.add_argument(
+    '--time_join',default=1.0,type=float,help="sampling rate of time_join ques"
+)
+parser.add_argument(
+    '--simple_entity',default=1.0,type=float,help="sampling rate of simple_ent ques"
+)
+
 args = parser.parse_args()
 
 # todo: this function may not be properly implemented
@@ -127,12 +147,12 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     eval_log.append("Split %s" % (split))
     print('Evaluating split', split)
 
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, 
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             num_workers=num_workers, collate_fn=dataset._collate_fn)
     topk_answers = []
     total_loss = 0
     loader = tqdm(data_loader, total=len(data_loader), unit="batches")
-    
+
     for i_batch, a in enumerate(loader):
         # if size of split is multiple of batch size, we need this
         # todo: is there a more elegant way?
@@ -197,10 +217,10 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
                     q_type = key,
                     hits_at_k = round(hits_at_k, 3),
                     num_questions = len(value)
-                ) 
+                )
                 # s = str(round(hits_at_k, 3))
                 eval_log.append(s)
-            eval_log.append('')        
+            eval_log.append('')
 
     # print eval log as well as return it
     for s in eval_log:
@@ -368,22 +388,21 @@ def append_log_to_file(eval_log, epoch, filename):
     f.write('\n')
     f.close()
 
-def train(qa_model, dataset, valid_dataset, args):
+def train(qa_model, dataset, valid_dataset, args,result_filename=None):
     num_workers = 5
     optimizer = torch.optim.Adam(qa_model.parameters(), lr=args.lr)
     optimizer.zero_grad()
     batch_size = args.batch_size
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                             collate_fn=dataset._collate_fn)
-    
     max_eval_score = 0
     if args.save_to == '':
         args.save_to = 'temp'
-        
-    result_filename = 'results/{dataset_name}/{model_file}.log'.format(
-        dataset_name = args.dataset_name,
-        model_file = args.save_to
-    )
+    if result_filename is None:
+        result_filename = 'results/{dataset_name}/{model_file}.log'.format(
+            dataset_name = args.dataset_name,
+            model_file = args.save_to
+        )
     checkpoint_file_name = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
         dataset_name = args.dataset_name,
         model_file = args.save_to
@@ -394,7 +413,7 @@ def train(qa_model, dataset, valid_dataset, args):
     # also log the config ie. args to the file
     if args.load_from == '':
         print('Creating new log file')
-        f = open(result_filename, 'w')
+        f = open(result_filename, 'a+')
         now = datetime.now()
         dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
         f.write('Log time: %s\n' % dt_string)
@@ -405,7 +424,16 @@ def train(qa_model, dataset, valid_dataset, args):
             f.write('%s:\t%s\n' % (key, value))
         f.write('\n')
         f.close()
-    
+
+    print("-----evaluating for epoch -1")
+    eval_score, eval_log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split,
+                                k=args.eval_k)
+    max_eval_score=None
+    save_model(qa_model, checkpoint_file_name)
+    max_eval_score = eval_score
+    print(f"max eval score unitl now epoch:{-1}, {max_eval_score}")
+    append_log_to_file(eval_log, -1, result_filename)
+
     print('Starting training')
     for epoch in range(args.max_epochs):
         qa_model.train()
@@ -471,32 +499,39 @@ if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_model1(split="test", dataset_name=args.dataset_name)
 elif args.model == 'embedding_only':
     qa_model = QA_model_Only_Embeddings(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name, tokenization_needed=False)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_model1(split="test", dataset_name=args.dataset_name)
 elif args.model == 'bert':
     qa_model = QA_model_BERT(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_model1(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_model1(split="test", dataset_name=args.dataset_name)
 elif args.model == 'eae':
     qa_model = QA_model_EaE(tkbc_model, args)
     if args.mode == 'train':
         dataset = QA_Dataset_EaE(split=train_split, dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_EaE(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EaE(split="test", dataset_name=args.dataset_name)
 elif args.model == 'eae_replace':
     qa_model = QA_model_EaE_replace(tkbc_model, args)
     if args.mode == 'train': # takes too much time to load train
         dataset = QA_Dataset_EaE_replace(split=train_split, dataset_name=args.dataset_name)
     valid_dataset = QA_Dataset_EaE_replace(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EaE_replace(split="test", dataset_name=args.dataset_name)
 elif args.model == 'embedkgqa':
     qa_model = QA_model_EmbedKGQA(tkbc_model, args)
-    dataset = QA_Dataset_EmbedKGQA(split=train_split, dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+    dataset = QA_Dataset_EmbedKGQA(args,split=train_split, dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(args,split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EmbedKGQA(args,split="test", dataset_name=args.dataset_name)
 elif args.model == 'embedkgqa_complex':
     qa_model = QA_model_EmbedKGQA_complex(tkbc_model, args)
-    dataset = QA_Dataset_EmbedKGQA(split=train_split, dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+    dataset = QA_Dataset_EmbedKGQA(args,split=train_split, dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(args,split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EmbedKGQA(args,split="test", dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
@@ -530,6 +565,24 @@ if args.mode == 'eval':
     score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
-train(qa_model, dataset, valid_dataset, args)
+result_filename = 'results/{dataset_name}/{model_file}.log'.format(
+    dataset_name=args.dataset_name,
+    model_file=args.save_to
+)
+f = open(result_filename, 'w')
+
+log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
+log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
+      "TEST info",test_dataset.get_dataset_ques_info()]
+append_log_to_file(log,-1,result_filename)
+score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k = args.eval_k)
+log=["######## TEST EVALUATION IN EPOCH -1 #########"]+log
+append_log_to_file(log,0,result_filename)
+
+train(qa_model, dataset, valid_dataset, args,result_filename=result_filename)
+
+score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k=args.eval_k)
+log=["######## TEST EVALUATION FINAL (BEST) #########"]+log
+append_log_to_file(log,0,result_filename)
 
 print('Training finished')

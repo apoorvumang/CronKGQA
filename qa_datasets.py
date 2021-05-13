@@ -15,8 +15,6 @@ from transformers import DistilBertTokenizer
 import random
 from torch.utils.data import Dataset, DataLoader
 # from nltk import word_tokenize
-
-
 # warning: padding id 0 is being used, can have issue like in Tucker
 # however since so many entities (and timestamps?), it may not pose problem
 
@@ -273,7 +271,7 @@ class QA_Dataset(Dataset):
 
 
 class QA_Dataset_EmbedKGQA(QA_Dataset):
-    def __init__(self, split, dataset_name, tokenization_needed=True):
+    def __init__(self, args,split, dataset_name, tokenization_needed=True):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         # self.data = self.data[:30000]
@@ -285,12 +283,12 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         #     if qn['type'] == qn_type:
         #         new_data.append(qn)
         # self.data = new_data
-        self.prepared_data = self.prepare_data(self.data)
+        self.prepared_data = self.prepare_data_(args,self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
         self.answer_vec_size = self.num_total_entities + self.num_total_times
 
-    def prepare_data(self, data):
+    def prepare_data_(self, args,data):
         # we want to prepare answers lists for each question
         # then at batch prep time, we just stack these
         # and use scatter 
@@ -301,9 +299,13 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         num_total_entities = len(self.all_dicts['ent2id'])
         answers_arr = []
         ent2id = self.all_dicts['ent2id']
-        for question in data:
-            # if qtype != 'simple_time':
-            #     continue
+        self.data_ids_filtered=[]
+        # self.data=[]
+        for i,question in enumerate(data):
+            qtype_rep=float(eval("args."+question["type"]))
+            if random.random()>qtype_rep: continue
+            self.data_ids_filtered.append(i)
+
             # first pp is question text
             # needs to be changed after making PD dataset
             # to randomly sample from list
@@ -344,6 +346,7 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
             answers_arr.append(answers)
             
         # answers_arr = self.get_stacked_answers_long(answers_arr)
+        self.data=[self.data[idx] for idx in self.data_ids_filtered]
         return {'question_text': question_text, 
                 'head': heads, 
                 'tail': tails,
@@ -379,7 +382,16 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         tails = torch.from_numpy(np.array([item[2] for item in items]))
         times = torch.from_numpy(np.array([item[3] for item in items]))
         answers_single = torch.from_numpy(np.array([item[4] for item in items]))
-        return b['input_ids'], b['attention_mask'], heads, tails, times, answers_single 
+        return b['input_ids'], b['attention_mask'], heads, tails, times, answers_single
+    def get_dataset_ques_info(self):
+        type2num={}
+        for question in self.data:
+            if question["type"] not in type2num: type2num[question["type"]]=0
+            type2num[question["type"]]+=1
+        return {"type2num":type2num, "total_num":len(self.data_ids_filtered)}.__str__()
+
+
+
 
 class QA_Dataset_model1(QA_Dataset):
     def __init__(self, split, dataset_name, tokenization_needed=True):
