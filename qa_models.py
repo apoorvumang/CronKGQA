@@ -444,6 +444,18 @@ class QA_model_EmbedKGQA(nn.Module):
         self.answer_type_embedding.weight.requires_grad = False
 
 
+        #Should you combine all entities while entity scoring?
+        self.combine_all_entities_bool=True if args.combine_all_ents!="None" else False
+        # self.combine_all_entities_func=(lambda x: torch.sum(x,dim=1)) if args.combine_all_ents=="add"\
+        #     else (lambda x: torch.prod(x, dim=1)) if args.combine_all_ents == "mult"\
+        #     else None
+        self.combine_all_entities_func_forReal=nn.Linear(self.tkbc_embedding_dim,self.tkbc_model.rank)
+        self.combine_all_entities_func_forCmplx=nn.Linear(self.tkbc_embedding_dim,self.tkbc_model.rank)
+
+        # if self.combine_all_entities_bool:
+        #     self.
+
+
         if args.frozen == 1:
             print('Freezing entity/time embeddings')
             self.entity_time_embedding.weight.requires_grad = False
@@ -496,12 +508,18 @@ class QA_model_EmbedKGQA(nn.Module):
                  lhs[0] * rel[0] * rhs[1] - lhs[1] * rel[1] * rhs[1]) @ time[1].t()
         )
 
-    def score_entity(self, head_embedding, relation_embedding, time_embedding):
-        lhs = head_embedding
+    def score_entity(self, head_embedding, tail_embedding,relation_embedding, time_embedding):
+        if self.combine_all_entities_bool:
+            lhs=  self.combine_all_entities_func_forReal(torch.cat((head_embedding[:,:self.tkbc_model.rank],
+                                                                    tail_embedding[:,:self.tkbc_model.rank]),dim=1))\
+                ,self.combine_all_entities_func_forCmplx(torch.cat((head_embedding[:,self.tkbc_model.rank:],
+                                                                tail_embedding[:,self.tkbc_model.rank:]),dim=1))
+
+        else:
+            lhs = head_embedding[:, :self.tkbc_model.rank], head_embedding[:, self.tkbc_model.rank:]
         rel = relation_embedding
         time = time_embedding
 
-        lhs = lhs[:, :self.tkbc_model.rank], lhs[:, self.tkbc_model.rank:]
         rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
         time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
 
@@ -517,9 +535,6 @@ class QA_model_EmbedKGQA(nn.Module):
                        (lhs[1] * full_rel[0] + lhs[0] * full_rel[1]) @ right[1].t()
                )
 
-
-    # def forward(self, question_tokenized, question_attention_mask, 
-    #             heads, times, question_text):
     def forward(self, a):
         question_tokenized = a[0].cuda()
         question_attention_mask = a[1].cuda()
@@ -536,7 +551,7 @@ class QA_model_EmbedKGQA(nn.Module):
         relation_embedding1 = self.dropout(self.bn1(self.linear1(relation_embedding)))
         relation_embedding2 = self.dropout(self.bn2(self.linear2(relation_embedding)))
         scores_time = self.score_time(head_embedding, tail_embedding, relation_embedding1)
-        scores_entity = self.score_entity(head_embedding, relation_embedding2, time_embedding)
+        scores_entity = self.score_entity(head_embedding, tail_embedding,relation_embedding2, time_embedding)
 
         scores = torch.cat((scores_entity, scores_time), dim=1)
         return scores
