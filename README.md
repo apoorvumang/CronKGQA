@@ -1,7 +1,10 @@
-# Temporal_KGQA
-Note: If you face any installation issues, please create a new issue or email me at apoorvsaxena@iisc.ac.in . Even if you are able to resolve the issue on your own, it will be helpful for me since I can make the necessary changes so as to make installation easier for any future users.
+# CronKGQA
+This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://malllabiisc.github.io/publications/papers/cronkgqa_acl2021.pdf)
+
 
 ## Installation
+
+Note: If you face any installation issues, please create a new issue or email me at apoorvsaxena@iisc.ac.in . Even if you are able to resolve the issue on your own, it will be helpful for me since I can make the necessary changes so as to make installation easier for any future users.
 
 Clone and create a conda environment
 ``` 
@@ -53,11 +56,6 @@ The notebook 'cronkgqa_testing.ipynb' can be used to test a model's responses to
 
 ## Running the code
 
-To generate tkbc embeddings, you can run something like
-
-```
-TODO: add command with right hyperparams for training the temporal KGE
-```
 
 Finally you can run training of QA model using these trained tkbc embeddings. embedkgqa model = cronkgqa (will fix naming etc. soon)
 ```
@@ -67,7 +65,7 @@ Finally you can run training of QA model using these trained tkbc embeddings. em
  --save_to temp --lm_frozen 1 --eval_split valid
  ```
  
- Evaluating the pretrained model (CronKGQA):
+Evaluating the pretrained model (CronKGQA):
  ```
   CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py \
  --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
@@ -82,3 +80,14 @@ Note: If you get an error about not having GPU support, please install pytorch a
 conda install pytorch torchvision torchaudio cudatoolkit=9.2 -c pytorch
 ```
 
+## How to cite
+If you used our work or found it helpful, please use the following citation:
+
+```
+@inproceedings{saxena2021cronkgqa,
+  title={Question Answering over Temporal Knowledge Graphs},
+  author={Saxena, Apoorv and Chakrabarti, Soumen and Talukdar, Partha},
+  booktitle={Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics},
+  year={2021}
+}
+```
