@@ -11,13 +11,13 @@ cd Temporal_KGQA
 conda create --prefix ./tkgqa_env python=3.8
 conda activate ./tkgqa_env
 ```
-Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
+<!-- Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
 ```
 which python
 [...]/Temporal_KGQA/tkgqa_env/bin/python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
-
+ -->
 
 Install tkbc requirements and setup tkbc
 ```
