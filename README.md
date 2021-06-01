@@ -33,13 +33,18 @@ conda install --file requirements.txt -c conda-forge
 
 
 ## Dataset and pretrained models download
+
+Download and unzip ``data.zip`` and ``model.zip`` in the root directory.
+
+Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing
+<!-- 
 ```
 wget https://storage.googleapis.com/cronkgqa/data.zip 
 wget https://storage.googleapis.com/cronkgqa/models.zip
 unzip -q data.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
-
+ -->
 ## Try out pretrained model
 
 Run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
