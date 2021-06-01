@@ -31,10 +31,6 @@ cd ..
 conda install --file requirements.txt -c conda-forge
 ```
 
-Hack to fix misc errors
-```
-mkdir results && mkdir results/wikidata_big
-```
 
 ## Dataset and pretrained models download
 ```
