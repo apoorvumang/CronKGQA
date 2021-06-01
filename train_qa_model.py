@@ -60,6 +60,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--transformer_dropout', default=0.1, type=float,
+    help="Dropout transformer"
+)
+
+
+parser.add_argument(
     '--num_transformer_layers', default=6, type=int,
     help="Num layers for transformer"
 )
@@ -140,6 +146,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     num_workers = 4
     qa_model.eval()
     eval_log = []
+    print_numbers_only = True
     k_for_reporting = k # not change name in fn signature since named param used in places
     # k_list = [1, 3, 10]
     k_list = [1, 10]
@@ -201,8 +208,10 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         eval_accuracy = hits_at_k/total
         if k == k_for_reporting:
             eval_accuracy_for_reporting = eval_accuracy
-        eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
-        eval_log.append(str(round(eval_accuracy, 3)))
+        if not print_numbers_only:
+            eval_log.append('Hits at %d: %f' % (k, round(eval_accuracy, 3)))
+        else:
+            eval_log.append(str(round(eval_accuracy, 3)))
 
 
         question_types_count = dict(sorted(question_types_count.items(), key=lambda x: x[0].lower()))
@@ -218,7 +227,8 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
                     hits_at_k = round(hits_at_k, 3),
                     num_questions = len(value)
                 )
-                # s = str(round(hits_at_k, 3))
+                if print_numbers_only:
+                    s = str(round(hits_at_k, 3))
                 eval_log.append(s)
             eval_log.append('')
 
@@ -493,7 +503,7 @@ if args.mode == 'test_kge':
 
 train_split = 'train'
 if args.pct_train != '100':
-    train_split = 'train_' + args.pct_train
+    train_split = 'train_' + args.pct_train + 'pct'
 
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
@@ -569,20 +579,20 @@ result_filename = 'results/{dataset_name}/{model_file}.log'.format(
     dataset_name=args.dataset_name,
     model_file=args.save_to
 )
-f = open(result_filename, 'w')
+# f = open(result_filename, 'w')
 
-log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
-log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
-      "TEST info",test_dataset.get_dataset_ques_info()]
-append_log_to_file(log,-1,result_filename)
-score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k = args.eval_k)
-log=["######## TEST EVALUATION IN EPOCH -1 #########"]+log
-append_log_to_file(log,0,result_filename)
+# log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
+# log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
+#       "TEST info",test_dataset.get_dataset_ques_info()]
+# append_log_to_file(log,-1,result_filename)
+# score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k = args.eval_k)
+# log=["######## TEST EVALUATION IN EPOCH -1 #########"]+log
+# append_log_to_file(log,0,result_filename)
 
 train(qa_model, dataset, valid_dataset, args,result_filename=result_filename)
 
-score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k=args.eval_k)
-log=["######## TEST EVALUATION FINAL (BEST) #########"]+log
-append_log_to_file(log,0,result_filename)
+# score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k=args.eval_k)
+# log=["######## TEST EVALUATION FINAL (BEST) #########"]+log
+# append_log_to_file(log,0,result_filename)
 
 print('Training finished')

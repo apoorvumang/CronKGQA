@@ -4,12 +4,13 @@ from torch import nn
 import numpy as np
 from tkbc.models import TComplEx
 from transformers import RobertaModel
+from transformers import BertModel
 from transformers import DistilBertModel
 # from kb.include_all import ModelArchiveFromParams
 # from kb.knowbert_utils import KnowBertBatchifier
 # from allennlp.common import Params
 # from allennlp.nn.util import move_to_device
-
+from torch.nn import LayerNorm
 
 
 # training data: questions
@@ -138,8 +139,9 @@ class QA_model_EaE(nn.Module):
         self.transformer_dim = self.tkbc_embedding_dim # keeping same so no need to project embeddings
         self.nhead = args.num_transformer_heads
         self.num_layers = args.num_transformer_layers
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.transformer_dim, nhead=self.nhead)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.transformer_dim, nhead=self.nhead, dropout=args.transformer_dropout)
+        encoder_norm = LayerNorm(self.transformer_dim)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers, norm=encoder_norm)
 
         self.project_sentence_to_transformer_dim = nn.Linear(self.sentence_embedding_dim, self.transformer_dim)
 
@@ -226,8 +228,10 @@ class QA_model_EaE_replace(nn.Module):
         self.transformer_dim = self.tkbc_embedding_dim # keeping same so no need to project embeddings
         self.nhead = args.num_transformer_heads
         self.num_layers = args.num_transformer_layers
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.transformer_dim, nhead=self.nhead)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
+        # self.transformer_dropout = args.transformer_dropout
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.transformer_dim, nhead=self.nhead, dropout=args.transformer_dropout)
+        encoder_norm = LayerNorm(self.transformer_dim)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers, norm=encoder_norm)
 
         self.project_sentence_to_transformer_dim = nn.Linear(self.sentence_embedding_dim, self.transformer_dim)
 
@@ -303,10 +307,13 @@ class QA_model_EaE_replace(nn.Module):
 class QA_model_BERT(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
-        # self.pretrained_weights = 'distilbert-base-uncased'
-        # self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
-        self.pretrained_weights = 'roberta-base'
-        self.roberta_model = RobertaModel.from_pretrained(self.pretrained_weights)
+        self.pretrained_weights = 'distilbert-base-uncased'
+        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        # self.pretrained_weights = 'roberta-base'
+        # self.roberta_model = RobertaModel.from_pretrained(self.pretrained_weights)
+        # self.pretrained_weights = 'bert-base-uncased'
+        # self.roberta_model = BertModel.from_pretrained(self.pretrained_weights)
+
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
         num_times = tkbc_model.embeddings[2].weight.shape[0]
         self.linear = nn.Linear(768, num_entities + num_times)
