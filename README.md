@@ -4,23 +4,20 @@ This is the code for our ACL 2021 paper [Question Answering over Temporal Knowle
 
 ## Installation
 
-Note: If you face any installation issues, please create a new issue or email me at apoorvsaxena@iisc.ac.in . Even if you are able to resolve the issue on your own, it will be helpful for me since I can make the necessary changes so as to make installation easier for any future users.
-
 Clone and create a conda environment
 ``` 
 git clone git@github.com:apoorvumang/Temporal_KGQA.git
 cd Temporal_KGQA
-git checkout investigate_results
 conda create --prefix ./tkgqa_env python=3.8
 conda activate ./tkgqa_env
 ```
-Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
+<!-- Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
 ```
 which python
 [...]/Temporal_KGQA/tkgqa_env/bin/python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
-
+ -->
 
 Install tkbc requirements and setup tkbc
 ```
@@ -49,7 +46,7 @@ rm data.zip && rm models.zip
 
 ## Try out pretrained model
 
-Use the branch 'investigate_results' and run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
+Run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
 
 The notebook 'cronkgqa_testing.ipynb' can be used to test a model's responses to any textual question, provided you give the list of entities and times in the question as well - this is needed since perfect entity linking is assumed. You can explore the dataset for questions which have entity annotation and modify those questions. You can also make a reverse dict of ``data/wikidata_big/kg/wd_id2entity_text.txt`` and search for wikidata ids of an entity that you want.
 
