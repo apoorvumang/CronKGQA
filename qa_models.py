@@ -307,12 +307,12 @@ class QA_model_EaE_replace(nn.Module):
 class QA_model_BERT(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
-        self.pretrained_weights = 'distilbert-base-uncased'
-        self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
+        # self.pretrained_weights = 'distilbert-base-uncased'
+        # self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
         # self.pretrained_weights = 'roberta-base'
         # self.roberta_model = RobertaModel.from_pretrained(self.pretrained_weights)
-        # self.pretrained_weights = 'bert-base-uncased'
-        # self.roberta_model = BertModel.from_pretrained(self.pretrained_weights)
+        self.pretrained_weights = 'bert-base-uncased'
+        self.roberta_model = BertModel.from_pretrained(self.pretrained_weights)
 
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
         num_times = tkbc_model.embeddings[2].weight.shape[0]

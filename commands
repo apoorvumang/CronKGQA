@@ -174,9 +174,9 @@ CUDA_VISIBLE_DEVICES=1 python3 -W ignore ./train_qa_model.py --frozen 1 --eval_k
 
 
 CUDA_VISIBLE_DEVICES=0 python3 -W ignore ./train_qa_model.py --frozen 1 --eval_k 1 --max_epochs 200 \
- --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tkbc_model_17dec.ckpt \
+ --lr 0.00005 --batch_size 150 --mode train --tkbc_model_file tkbc_model_17dec.ckpt \
  --dataset wikidata_big --valid_freq 3 --model bert --valid_batch_size 50  \
- --save_to bert2_finalds2 --lm_frozen 1 --eval_split valid
+ --save_to distilbertbert_finalds2 --lm_frozen 0 --eval_split valid
 
 
 
@@ -348,3 +348,11 @@ CUDA_VISIBLE_DEVICES=0 python3 -W ignore ./train_qa_model.py --frozen 1 --eval_k
  --lr 0.00002 --batch_size 250 --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
  --dataset wikidata_big --valid_freq 3 --model eae_replace --valid_batch_size 50  \
  --load_from eae_replace_with_norm_30pct_finalds2 --lm_frozen 1 --eval_split test
+
+
+
+
+CUDA_VISIBLE_DEVICES=6 python3 -W ignore ./train_qa_model.py --frozen 1 --eval_k 1 --max_epochs 200 \
+ --lr 0.00002 --batch_size 250 --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
+ --dataset wikidata_big --valid_freq 3 --model bert --valid_batch_size 50  \
+ --load_from distilbertbert_finalds2 --lm_frozen 1 --eval_split test

@@ -24,14 +24,6 @@ class QA_Dataset(Dataset):
                 split,
                 dataset_name,
                 tokenization_needed=True):
-        # filename = 'data/{dataset_name}/questions/{split}_v6.pickle'.format(
-        #     dataset_name=dataset_name,
-        #     split=split
-        # )
-        # v6 is fixed dataset, v7 has machine pp as well
-        # v8 has verified machine pp only
-        # without any v8 its old dataset (pre camera ready)
-        # v9 is machine verified 2
         filename = 'data/{dataset_name}/questions/{split}_v9.pickle'.format(
             dataset_name=dataset_name,
             split=split
@@ -42,10 +34,10 @@ class QA_Dataset(Dataset):
         # self.pretrained_weights = 'roberta-base'
         # self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
 
-        # self.tokenizer_class = BertTokenizer 
-        # self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        self.tokenizer_class = DistilBertTokenizer 
-        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+        self.tokenizer_class = BertTokenizer 
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        # self.tokenizer_class = DistilBertTokenizer 
+        # self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
         # self.tokenizer_class = RobertaTokenizer 
         # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
         self.all_dicts = utils.getAllDicts(dataset_name)
