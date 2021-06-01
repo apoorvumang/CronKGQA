@@ -4,6 +4,7 @@ tkgqa_env/*
 tkbc/models/*
 tkbc/src_data/*
 tkbc/data/*
+make_questions/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
