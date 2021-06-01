@@ -24,7 +24,7 @@ class QA_Dataset(Dataset):
                 split,
                 dataset_name,
                 tokenization_needed=True):
-        filename = 'data/{dataset_name}/questions/{split}_v9.pickle'.format(
+        filename = 'data/{dataset_name}/questions/{split}.pickle'.format(
             dataset_name=dataset_name,
             split=split
         )
@@ -34,10 +34,10 @@ class QA_Dataset(Dataset):
         # self.pretrained_weights = 'roberta-base'
         # self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
 
-        self.tokenizer_class = BertTokenizer 
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        # self.tokenizer_class = DistilBertTokenizer 
-        # self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+        # self.tokenizer_class = BertTokenizer 
+        # self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.tokenizer_class = DistilBertTokenizer 
+        self.tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
         # self.tokenizer_class = RobertaTokenizer 
         # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
         self.all_dicts = utils.getAllDicts(dataset_name)
