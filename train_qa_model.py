@@ -128,6 +128,12 @@ parser.add_argument(
 parser.add_argument(
     '--simple_entity',default=1.0,type=float,help="sampling rate of simple_ent ques"
 )
+parser.add_argument(
+    '--multi_label',default=0,type=int,help="multiple labels?"
+)
+parser.add_argument(
+    '--attention',default=0,type=int,help="do attention or not?"
+)
 
 args = parser.parse_args()
 
@@ -141,7 +147,6 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     qa_model.eval()
     eval_log = []
     k_for_reporting = k # not change name in fn signature since named param used in places
-    # k_list = [1, 3, 10]
     k_list = [1, 10]
     max_k = max(k_list)
     eval_log.append("Split %s" % (split))
@@ -163,6 +168,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
         for s in scores:
             pred = dataset.getAnswersFromScores(s, k=max_k)
             topk_answers.append(pred)
+        # print(scores.shape,answers_khot.shape)
         loss = qa_model.loss(scores, answers_khot.cuda())
         total_loss += loss.item()
     eval_log.append('Loss %f' % total_loss)
@@ -233,8 +239,6 @@ def predict_single(qa_model, dataset, ids, batch_size = 128, split='valid', k=10
     qa_model.eval()
     eval_log = []
     k_for_reporting = k # not change name in fn signature since named param used in places
-    # k_list = [1, 3, 10]
-    # k_list = [1, 10]
     k_list = [1, 5]
     max_k = max(k_list)
     eval_log.append("Split %s" % (split))
@@ -390,6 +394,7 @@ def append_log_to_file(eval_log, epoch, filename):
 
 def train(qa_model, dataset, valid_dataset, args,result_filename=None):
     num_workers = 5
+    # if args.model=="eae":
     optimizer = torch.optim.Adam(qa_model.parameters(), lr=args.lr)
     optimizer.zero_grad()
     batch_size = args.batch_size
@@ -448,9 +453,19 @@ def train(qa_model, dataset, valid_dataset, args,result_filename=None):
             #             entities_times_padded_mask.cuda(), question_text)
 
             answers_khot = a[-1] # last one assumed to be target
-            scores = qa_model.forward(a)
-
-            loss = qa_model.loss(scores, answers_khot.cuda())
+            loss=0
+            if args.model=="eae" or args.model=="eae_replace":
+                output_first_trans=qa_model.getOuputFirstTransformer(a)
+                scores=qa_model.forward(a,output_first_trans)
+                mention_loss=0
+                # mention_loss=qa_model.lossMentionDetectionAndEntityLink(a,output_first_trans)
+                loss+=mention_loss
+                # print(f"mention loss: {mention_loss}",end=" ")
+            else:
+                scores = qa_model.forward(a)
+            output_loss = qa_model.loss(scores, answers_khot.cuda())
+            # print(f"output loss: {output_loss}")
+            loss+=output_loss
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
@@ -494,7 +509,6 @@ if args.mode == 'test_kge':
 train_split = 'train'
 if args.pct_train != '100':
     train_split = 'train_' + args.pct_train
-
 if args.model == 'model1':
     qa_model = QA_model(tkbc_model, args)
     dataset = QA_Dataset_model1(split=train_split, dataset_name=args.dataset_name)
@@ -538,7 +552,6 @@ else:
 
 print('Model is', args.model)
 
-
 if args.load_from != '':
     filename = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
         dataset_name=args.dataset_name,
@@ -571,18 +584,23 @@ result_filename = 'results/{dataset_name}/{model_file}.log'.format(
 )
 f = open(result_filename, 'w')
 
-log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
-log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
-      "TEST info",test_dataset.get_dataset_ques_info()]
-append_log_to_file(log,-1,result_filename)
+# log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
+# log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
+#       "TEST info",test_dataset.get_dataset_ques_info()]
+# append_log_to_file(log,-1,result_filename)
 score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k = args.eval_k)
 log=["######## TEST EVALUATION IN EPOCH -1 #########"]+log
 append_log_to_file(log,0,result_filename)
+if args.mode=="train":
+    train(qa_model, dataset, valid_dataset, args,result_filename=result_filename)
+    filename = 'models/{dataset_name}/qa_models/{model_file}.ckpt'.format(
+        dataset_name=args.dataset_name,
+        model_file=args.save_to
+    )
 
-train(qa_model, dataset, valid_dataset, args,result_filename=result_filename)
+    qa_model.load_state_dict(torch.load(filename))
+    score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k=args.eval_k)
+    log=["######## TEST EVALUATION FINAL (BEST) #########"]+log
+    append_log_to_file(log,0,result_filename)
 
-score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k=args.eval_k)
-log=["######## TEST EVALUATION FINAL (BEST) #########"]+log
-append_log_to_file(log,0,result_filename)
-
-print('Training finished')
+    print('Training finished')

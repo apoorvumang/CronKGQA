@@ -123,6 +123,7 @@ class QA_model(nn.Module):
 class QA_model_EaE(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
@@ -142,6 +143,7 @@ class QA_model_EaE(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
 
         self.project_sentence_to_transformer_dim = nn.Linear(self.sentence_embedding_dim, self.transformer_dim)
+        self.mention_detection_linear = nn.Linear(self.transformer_dim, 2)
 
 
         num_entities = tkbc_model.embeddings[0].weight.shape[0]
@@ -168,19 +170,24 @@ class QA_model_EaE(nn.Module):
         self.layer_norm = nn.LayerNorm(self.transformer_dim)
 #         self.final_linear = nn.Linear(self.transformer_dim, num_entities + num_times)
         return
-
-    def forward(self, a):
+    def getOuputFirstTransformer(self,a):
         question_tokenized = a[0].cuda()
         question_attention_mask = a[1].cuda()
+        outputs=self.roberta_model(question_tokenized, attention_mask=question_attention_mask)
+        last_hidden_states = outputs.last_hidden_state
+        question_embedding = self.project_sentence_to_transformer_dim(last_hidden_states)
+        return  question_embedding
+
+
+
+    def forward(self, a,output_first_transformer=None):
         entities_times_padded = a[2].cuda()
         entities_times_padded_mask = a[3].cuda()
         entity_time_embedding = self.entity_time_embedding(entities_times_padded)
-        outputs = self.roberta_model(question_tokenized, attention_mask=question_attention_mask)
-        last_hidden_states = outputs.last_hidden_state
-        question_embedding = self.project_sentence_to_transformer_dim(last_hidden_states)
-
+        if output_first_transformer is None:
+            output_first_transformer=self.getOuputFirstTransformer(a)
         # we add those 2 now, and do layer norm??
-        combined_embed = question_embedding + entity_time_embedding
+        combined_embed = output_first_transformer + entity_time_embedding
 
         # also need to add position embedding
         sequence_length = combined_embed.shape[1]
@@ -208,9 +215,22 @@ class QA_model_EaE(nn.Module):
         # scores = torch.sigmoid(scores)
         return scores
 
+
+    def lossMentionDetectionAndEntityLink(self, a,output_first_transformer):
+        # entities_times_padded = a[2].cuda()
+        entities_times_padded_mask = a[3].cuda()
+        # entity_time_embedding = self.entity_time_embedding(entities_times_padded)
+        mention_scores=self.mention_detection_linear(output_first_transformer)
+        mention_loss=torch.nn.CrossEntropyLoss()(torch.transpose(mention_scores,-1,-2),entities_times_padded_mask.long())
+        # ELLloss = torch.matmul(output_first_transformer, self.entity_time_embedding.T) # cuz padding idx
+        return mention_loss*10
+
+
+
 class QA_model_EaE_replace(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
@@ -303,6 +323,7 @@ class QA_model_EaE_replace(nn.Module):
 class QA_model_BERT(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         # self.pretrained_weights = 'distilbert-base-uncased'
         # self.roberta_model = DistilBertModel.from_pretrained(self.pretrained_weights)
         self.pretrained_weights = 'roberta-base'
@@ -342,6 +363,7 @@ class QA_model_BERT(nn.Module):
 class QA_model_Only_Embeddings(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
@@ -407,6 +429,7 @@ class QA_model_Only_Embeddings(nn.Module):
 class QA_model_EmbedKGQA(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
@@ -446,14 +469,13 @@ class QA_model_EmbedKGQA(nn.Module):
 
         #Should you combine all entities while entity scoring?
         self.combine_all_entities_bool=True if args.combine_all_ents!="None" else False
+        self.attention_bool=True if args.attention else False
         # self.combine_all_entities_func=(lambda x: torch.sum(x,dim=1)) if args.combine_all_ents=="add"\
         #     else (lambda x: torch.prod(x, dim=1)) if args.combine_all_ents == "mult"\
         #     else None
         self.combine_all_entities_func_forReal=nn.Linear(self.tkbc_embedding_dim,self.tkbc_model.rank)
         self.combine_all_entities_func_forCmplx=nn.Linear(self.tkbc_embedding_dim,self.tkbc_model.rank)
 
-        # if self.combine_all_entities_bool:
-        #     self.
 
 
         if args.frozen == 1:
@@ -471,7 +493,12 @@ class QA_model_EmbedKGQA(nn.Module):
         self.linear2 = nn.Linear(self.tkbc_embedding_dim, self.tkbc_embedding_dim)
         # self.linear2.weight.data.copy_(torch.eye(self.tkbc_embedding_dim))
         # self.loss = nn.BCELoss(reduction='mean')
-        self.loss = nn.CrossEntropyLoss(reduction='mean')
+        if not self.multiple_labels_bool:
+            self.loss = nn.CrossEntropyLoss(reduction='mean')
+        else:
+            # self.loss = nn.MultiLabelSoftMarginLoss()
+            self.loss = nn.BCEWithLogitsLoss()
+
 
         self.dropout = torch.nn.Dropout(0.3)
         self.bn1 = torch.nn.BatchNorm1d(self.tkbc_embedding_dim)
@@ -507,8 +534,15 @@ class QA_model_EmbedKGQA(nn.Module):
                 (lhs[1] * rel[0] * rhs[0] - lhs[0] * rel[1] * rhs[0] +
                  lhs[0] * rel[0] * rhs[1] - lhs[1] * rel[1] * rhs[1]) @ time[1].t()
         )
+    def get_time_embedding(self,question_embedding,time_embedding,time_mask):
+        all_times= self.tkbc_model.embeddings[2].weight # num_times x embed_size
+        alpha_ts=torch.softmax((question_embedding@(all_times.t()))/torch.sqrt(torch.tensor(self.tkbc_embedding_dim)),dim=1)# ((B x emebd_size) @ (num_times x embed_size).t()).unsqueeze(-1) ->  (B x num_times x 1)
+        # print(all_times.shape,alpha_ts.shape,time_mask.shape)
+        return time_mask*(alpha_ts@all_times)+(1-time_mask)*time_embedding
 
-    def score_entity(self, head_embedding, tail_embedding,relation_embedding, time_embedding):
+
+
+    def score_entity(self, head_embedding, tail_embedding,relation_embedding, time_embedding,time_mask):
         if self.combine_all_entities_bool:
             lhs=  self.combine_all_entities_func_forReal(torch.cat((head_embedding[:,:self.tkbc_model.rank],
                                                                     tail_embedding[:,:self.tkbc_model.rank]),dim=1))\
@@ -521,7 +555,11 @@ class QA_model_EmbedKGQA(nn.Module):
         time = time_embedding
 
         rel = rel[:, :self.tkbc_model.rank], rel[:, self.tkbc_model.rank:]
-        time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
+        if not self.attention_bool:
+            time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
+        else:
+            time=self.get_time_embedding(relation_embedding,time_embedding,time_mask)
+            time = time[:, :self.tkbc_model.rank], time[:, self.tkbc_model.rank:]
 
         right = self.tkbc_model.embeddings[0].weight
         # right = self.entity_time_embedding.weight
@@ -545,13 +583,14 @@ class QA_model_EmbedKGQA(nn.Module):
         head_embedding = self.entity_time_embedding(heads)
         tail_embedding = self.entity_time_embedding(tails)
         time_embedding = self.entity_time_embedding(times)
+        time_mask=(1.0*(times==0)).view(-1,1)
         question_embedding = self.getQuestionEmbedding(question_tokenized, question_attention_mask)
         relation_embedding = self.linear(question_embedding)
 
         relation_embedding1 = self.dropout(self.bn1(self.linear1(relation_embedding)))
         relation_embedding2 = self.dropout(self.bn2(self.linear2(relation_embedding)))
         scores_time = self.score_time(head_embedding, tail_embedding, relation_embedding1)
-        scores_entity = self.score_entity(head_embedding, tail_embedding,relation_embedding2, time_embedding)
+        scores_entity = self.score_entity(head_embedding, tail_embedding,relation_embedding2, time_embedding,time_mask)
 
         scores = torch.cat((scores_entity, scores_time), dim=1)
         return scores
@@ -561,6 +600,7 @@ class QA_model_EmbedKGQA(nn.Module):
 class QA_model_EmbedKGQA_complex(nn.Module):
     def __init__(self, tkbc_model, args):
         super().__init__()
+        self.multiple_labels_bool=args.multi_label
         self.tkbc_embedding_dim = tkbc_model.embeddings[0].weight.shape[1]
         self.sentence_embedding_dim = 768 # hardwired from roberta?
         self.pretrained_weights = 'distilbert-base-uncased'
