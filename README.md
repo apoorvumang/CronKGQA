@@ -58,7 +58,7 @@ The notebook ``cronkgqa_testing.ipynb`` can be used to test a model's responses 
 Finally you can run training of QA model using these trained tkbc embeddings. embedkgqa model = cronkgqa (will fix naming etc. soon)
 ```
  CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py --frozen 1 --eval_k 1 --max_epochs 200 \
- --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tkbc_model_17dec.ckpt \
+ --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tcomplex_17dec.ckpt \
  --dataset wikidata_big --valid_freq 3 --model embedkgqa --valid_batch_size 50  \
  --save_to temp --lm_frozen 1 --eval_split valid
  ```
@@ -66,9 +66,9 @@ Finally you can run training of QA model using these trained tkbc embeddings. em
 Evaluating the pretrained model (CronKGQA):
  ```
   CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py \
- --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
+ --mode eval --tkbc_model_file tcomplex_17dec.ckpt \
  --dataset wikidata_big --model embedkgqa --valid_batch_size 50  \
- --load_from embedkgqa_dual_frozen_lm_fix_order_ce --eval_split test
+ --load_from cronkgqa_29may --eval_split test
  ```
 
 Please explore the qa_models.py file for other models, you can change the model by providing the --model parameter.
