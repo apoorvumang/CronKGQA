@@ -34,7 +34,7 @@ conda install --file requirements.txt -c conda-forge
 
 ## Dataset and pretrained models download
 
-Download and unzip ``data.zip`` and ``model.zip`` in the root directory.
+Download and unzip ``data.zip`` and ``models.zip`` in the root directory.
 
 Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing
 <!-- 
