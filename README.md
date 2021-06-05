@@ -1,5 +1,5 @@
 # CronKGQA
-This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://malllabiisc.github.io/publications/papers/cronkgqa_acl2021.pdf)
+This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://arxiv.org/abs/2106.01515)
 
 
 ## Installation
