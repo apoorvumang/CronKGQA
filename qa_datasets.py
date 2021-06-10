@@ -12,7 +12,7 @@ import utils
 from tqdm import tqdm
 from transformers import RobertaTokenizer
 from transformers import DistilBertTokenizer
-import random
+import random,os
 from torch.utils.data import Dataset, DataLoader
 # from nltk import word_tokenize
 # warning: padding id 0 is being used, can have issue like in Tucker
@@ -269,6 +269,14 @@ class QA_Dataset(Dataset):
             output.append(buffer)
         return output
 
+    def get_dataset_ques_info(self):
+        type2num={}
+        for question in self.data:
+            if question["type"] not in type2num: type2num[question["type"]]=0
+            type2num[question["type"]]+=1
+        return {"type2num":type2num, "total_num":len(self.data_ids_filtered)}.__str__()
+
+
 
 class QA_Dataset_EmbedKGQA(QA_Dataset):
     def __init__(self, args,split, dataset_name, tokenization_needed=True):
@@ -283,7 +291,12 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         #     if qn['type'] == qn_type:
         #         new_data.append(qn)
         # self.data = new_data
-        self.prepared_data = self.prepare_data_(args,self.data)
+        self.multiple_labels_bool=args.multi_label
+        if os.path.exists(f"Data_processed/{args.model}_{split}"):
+            self.prepared_data=pickle.load(open(f"Data_processed/{args.model}_{split}","rb"))
+        else:
+            self.prepared_data = self.prepare_data_(args,self.data)
+            pickle.dump(self.prepared_data,open(f"Data_processed/{args.model}_{split}", "wb"))
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
         self.answer_vec_size = self.num_total_entities + self.num_total_times
@@ -372,7 +385,12 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         tail = data['tail'][index]
         time = data['time'][index]
         answers_arr = data['answers_arr'][index]
-        answers_single = random.choice(answers_arr)
+        if not self.multiple_labels_bool:
+            answers_single = random.choice(answers_arr)
+        else:
+            # answers_single = torch.tensor(answers_arr)
+            answers_single = torch.sum(torch.nn.functional.one_hot(torch.tensor(answers_arr),self.num_total_entities+self.num_total_times),0)
+
         return question_text, head, tail, time, answers_single #,answers_khot
 
     def _collate_fn(self, items):
@@ -381,14 +399,15 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         heads = torch.from_numpy(np.array([item[1] for item in items]))
         tails = torch.from_numpy(np.array([item[2] for item in items]))
         times = torch.from_numpy(np.array([item[3] for item in items]))
-        answers_single = torch.from_numpy(np.array([item[4] for item in items]))
+        if not self.multiple_labels_bool:
+            answers_single = torch.from_numpy(np.array([item[4] for item in items]))
+        else:
+            answers_single = torch.stack([item[4] for item in items],dim=0).float()
+            # answers_single = torch.nn.utils.rnn.pad_sequence([item[4] for item in items],batch_first=True,padding_value=-1)
+            # remaining_len=self.num_total_times+self.num_total_entities-answers_single.shape[-1]
+            # answers_single=torch.cat((answers_single,-1*torch.ones(answers_single.shape[0],remaining_len,dtype=answers_single.dtype)),dim=-1)
+
         return b['input_ids'], b['attention_mask'], heads, tails, times, answers_single
-    def get_dataset_ques_info(self):
-        type2num={}
-        for question in self.data:
-            if question["type"] not in type2num: type2num[question["type"]]=0
-            type2num[question["type"]]+=1
-        return {"type2num":type2num, "total_num":len(self.data_ids_filtered)}.__str__()
 
 
 
@@ -434,10 +453,11 @@ class QA_Dataset_model1(QA_Dataset):
 
 
 class QA_Dataset_EaE(QA_Dataset):
-    def __init__(self, split, dataset_name, tokenization_needed=True):
+    def __init__(self, args,split, dataset_name, tokenization_needed=True):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         # self.data = self.data[:31000]
+        self.multiple_labels_bool=args.multi_label
         self.data = self.addEntityAnnotation(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
@@ -609,11 +629,12 @@ class QA_Dataset_EaE(QA_Dataset):
 # replace entity mention tokens
 # rather than add + layernorm
 class QA_Dataset_EaE_replace(QA_Dataset):
-    def __init__(self, split, dataset_name, tokenization_needed=True):
+    def __init__(self, args, split, dataset_name, tokenization_needed=True):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         # self.data = self.data[:1000]
         # random.shuffle(self.data)
+        self.multiple_labels_bool=args.multi_label
         self.data = self.addEntityAnnotation(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
