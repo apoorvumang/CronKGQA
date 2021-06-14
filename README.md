@@ -18,6 +18,8 @@ which python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
  -->
+We use TComplEx KG Embeddings as proposed in [Tensor Decompositions for temporal knowledge base completion](https://arxiv.org/abs/2004.04926). We use a modified version of their code from https://github.com/facebookresearch/tkbc
+
 
 Install tkbc requirements and setup tkbc
 ```
