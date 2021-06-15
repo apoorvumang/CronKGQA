@@ -75,11 +75,6 @@ Evaluating the pretrained model (CronKGQA):
 
 Please explore the qa_models.py file for other models, you can change the model by providing the --model parameter.
 
-Note: If you get an error about not having GPU support, please install pytorch according to the CUDA version installed on the system. For eg. if you have CUDA 9.2
-```
-conda install pytorch torchvision torchaudio cudatoolkit=9.2 -c pytorch
-```
-
 ## How to cite
 If you used our work or found it helpful, please use the following citation:
 
