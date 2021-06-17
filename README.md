@@ -1,5 +1,5 @@
 # CronKGQA
-This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://malllabiisc.github.io/publications/papers/cronkgqa_acl2021.pdf)
+This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://arxiv.org/abs/2106.01515)
 
 
 ## Installation
@@ -18,6 +18,8 @@ which python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
  -->
+We use TComplEx KG Embeddings as proposed in [Tensor Decompositions for temporal knowledge base completion](https://arxiv.org/abs/2004.04926). We use a modified version of their code from https://github.com/facebookresearch/tkbc
+
 
 Install tkbc requirements and setup tkbc
 ```
@@ -33,13 +35,18 @@ conda install --file requirements.txt -c conda-forge
 
 
 ## Dataset and pretrained models download
+
+Download and unzip ``data.zip`` and ``models.zip`` in the root directory.
+
+Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing
+<!-- 
 ```
 wget https://storage.googleapis.com/cronkgqa/data.zip 
 wget https://storage.googleapis.com/cronkgqa/models.zip
 unzip -q data.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
-
+ -->
 ## Try out pretrained model
 
 Run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
@@ -53,7 +60,7 @@ The notebook ``cronkgqa_testing.ipynb`` can be used to test a model's responses 
 Finally you can run training of QA model using these trained tkbc embeddings. embedkgqa model = cronkgqa (will fix naming etc. soon)
 ```
  CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py --frozen 1 --eval_k 1 --max_epochs 200 \
- --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tkbc_model_17dec.ckpt \
+ --lr 0.00002 --batch_size 250 --mode train --tkbc_model_file tcomplex_17dec.ckpt \
  --dataset wikidata_big --valid_freq 3 --model embedkgqa --valid_batch_size 50  \
  --save_to temp --lm_frozen 1 --eval_split valid
  ```
@@ -61,17 +68,12 @@ Finally you can run training of QA model using these trained tkbc embeddings. em
 Evaluating the pretrained model (CronKGQA):
  ```
   CUDA_VISIBLE_DEVICES=1 python -W ignore ./train_qa_model.py \
- --mode eval --tkbc_model_file tkbc_model_17dec.ckpt \
+ --mode eval --tkbc_model_file tcomplex_17dec.ckpt \
  --dataset wikidata_big --model embedkgqa --valid_batch_size 50  \
- --load_from embedkgqa_dual_frozen_lm_fix_order_ce --eval_split test
+ --load_from cronkgqa_29may --eval_split test
  ```
 
 Please explore the qa_models.py file for other models, you can change the model by providing the --model parameter.
-
-Note: If you get an error about not having GPU support, please install pytorch according to the CUDA version installed on the system. For eg. if you have CUDA 9.2
-```
-conda install pytorch torchvision torchaudio cudatoolkit=9.2 -c pytorch
-```
 
 ## How to cite
 If you used our work or found it helpful, please use the following citation:
