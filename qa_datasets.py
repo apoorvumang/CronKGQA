@@ -274,7 +274,7 @@ class QA_Dataset(Dataset):
 
 
 class QA_Dataset_EmbedKGQA(QA_Dataset):
-    def __init__(self, args,split, dataset_name, tokenization_needed=True):
+    def __init__(self, split, dataset_name, tokenization_needed=True):
         super().__init__(split, dataset_name, tokenization_needed)
         print('Preparing data for split %s' % split)
         # self.data = self.data[:30000]
@@ -286,12 +286,12 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         #     if qn['type'] == qn_type:
         #         new_data.append(qn)
         # self.data = new_data
-        self.prepared_data = self.prepare_data_(args,self.data)
+        self.prepared_data = self.prepare_data_(self.data)
         self.num_total_entities = len(self.all_dicts['ent2id'])
         self.num_total_times = len(self.all_dicts['ts2id'])
         self.answer_vec_size = self.num_total_entities + self.num_total_times
 
-    def prepare_data_(self, args,data):
+    def prepare_data_(self, data):
         # we want to prepare answers lists for each question
         # then at batch prep time, we just stack these
         # and use scatter 
@@ -305,8 +305,6 @@ class QA_Dataset_EmbedKGQA(QA_Dataset):
         self.data_ids_filtered=[]
         # self.data=[]
         for i,question in enumerate(data):
-            qtype_rep=float(eval("args."+question["type"]))
-            if random.random()>qtype_rep: continue
             self.data_ids_filtered.append(i)
 
             # first pp is question text

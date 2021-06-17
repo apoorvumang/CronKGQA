@@ -534,14 +534,14 @@ elif args.model == 'eae_replace':
     test_dataset = QA_Dataset_EaE_replace(split="test", dataset_name=args.dataset_name)
 elif args.model == 'embedkgqa':
     qa_model = QA_model_EmbedKGQA(tkbc_model, args)
-    dataset = QA_Dataset_EmbedKGQA(args,split=train_split, dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_EmbedKGQA(args,split=args.eval_split, dataset_name=args.dataset_name)
-    test_dataset = QA_Dataset_EmbedKGQA(args,split="test", dataset_name=args.dataset_name)
+    dataset = QA_Dataset_EmbedKGQA(split=train_split, dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EmbedKGQA(split="test", dataset_name=args.dataset_name)
 elif args.model == 'embedkgqa_complex':
     qa_model = QA_model_EmbedKGQA_complex(tkbc_model, args)
-    dataset = QA_Dataset_EmbedKGQA(args,split=train_split, dataset_name=args.dataset_name)
-    valid_dataset = QA_Dataset_EmbedKGQA(args,split=args.eval_split, dataset_name=args.dataset_name)
-    test_dataset = QA_Dataset_EmbedKGQA(args,split="test", dataset_name=args.dataset_name)
+    dataset = QA_Dataset_EmbedKGQA(split=train_split, dataset_name=args.dataset_name)
+    valid_dataset = QA_Dataset_EmbedKGQA(split=args.eval_split, dataset_name=args.dataset_name)
+    test_dataset = QA_Dataset_EmbedKGQA(split="test", dataset_name=args.dataset_name)
 else:
     print('Model %s not implemented!' % args.model)
     exit(0)
