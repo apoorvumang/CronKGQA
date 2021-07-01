@@ -6,15 +6,15 @@ This is the code for our ACL 2021 paper [Question Answering over Temporal Knowle
 
 Clone and create a conda environment
 ``` 
-git clone git@github.com:apoorvumang/Temporal_KGQA.git
-cd Temporal_KGQA
+git clone git@github.com:apoorvumang/CronKGQA.git
+cd CronKGQA
 conda create --prefix ./tkgqa_env python=3.8
 conda activate ./tkgqa_env
 ```
 <!-- Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
 ```
 which python
-[...]/Temporal_KGQA/tkgqa_env/bin/python
+[...]/CronKGQA/tkgqa_env/bin/python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
  -->
@@ -27,7 +27,7 @@ conda install --file requirements_tkbc.txt -c pytorch
 python setup_tkbc.py install
 ```
 
-Install Temporal KGQA requirements
+Install CronKGQA requirements
 ```
 cd ..
 conda install --file requirements.txt -c conda-forge
