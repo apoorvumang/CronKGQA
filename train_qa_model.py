@@ -146,7 +146,7 @@ def eval(qa_model, dataset, batch_size = 128, split='valid', k=10):
     num_workers = 4
     qa_model.eval()
     eval_log = []
-    print_numbers_only = True
+    print_numbers_only = False
     k_for_reporting = k # not change name in fn signature since named param used in places
     # k_list = [1, 3, 10]
     k_list = [1, 10]
