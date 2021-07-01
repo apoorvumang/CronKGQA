@@ -8,18 +8,18 @@ Clone and create a conda environment
 ``` 
 git clone git@github.com:apoorvumang/CronKGQA.git
 cd CronKGQA
-conda create --prefix ./tkgqa_env python=3.8
-conda activate ./tkgqa_env
+conda create --prefix ./cronkgqa_env python=3.8
+conda activate ./cronkgqa_env
 ```
 <!-- Make sure ``python`` and ``pip`` commands point to ``./tkgqa_env``. Output of ``which`` should be something like
 ```
 which python
-[...]/CronKGQA/tkgqa_env/bin/python
+[...]/CronKGQA/cronkgqa_env/bin/python
 ```
 If this is not the case, try replacing ``python`` with ``python3``. If that works, replace ``python`` with ``python3`` in all commands below.
  -->
-We use TComplEx KG Embeddings as proposed in [Tensor Decompositions for temporal knowledge base completion](https://arxiv.org/abs/2004.04926). We use a modified version of their code from https://github.com/facebookresearch/tkbc
-
+ 
+We use TComplEx KG Embeddings as proposed in [Tensor Decompositions for temporal knowledge base completion](https://arxiv.org/abs/2004.04926). We use a slightly modified version of their code from https://github.com/facebookresearch/tkbc
 
 Install tkbc requirements and setup tkbc
 ```
@@ -29,16 +29,14 @@ python setup_tkbc.py install
 
 Install CronKGQA requirements
 ```
-cd ..
 conda install --file requirements.txt -c conda-forge
 ```
-
 
 ## Dataset and pretrained models download
 
 Download and unzip ``data.zip`` and ``models.zip`` in the root directory.
 
-Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing
+Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing, or use ``gdown``
 <!-- 
 ```
 wget https://storage.googleapis.com/cronkgqa/data.zip 
@@ -47,6 +45,14 @@ unzip -q data.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
  -->
+ 
+```
+gdown https://drive.google.com/uc\?id\=1wilPf3qohD-6156Daaz5M6GRuJiRP3P4
+gdown https://drive.google.com/uc\?id\=18w_aPl-oLfWnTLnoMnTU9Pm4El1T9wkB
+unzip -q data.zip && unzip -q models.zip
+rm data.zip && rm models.zip
+```
+
 ## Try out pretrained model
 
 Run a jupyter notebook in the root folder. Make sure to activate the correct environment before running the notebook
