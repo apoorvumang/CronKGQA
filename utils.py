@@ -24,7 +24,7 @@ def loadTkbcModel(tkbc_model_file):
 
 def loadTkbcModel_complex(tkbc_model_file):
     print('Loading complex tkbc model from', tkbc_model_file)
-    tcomplex_file = 'models/wikidata_big/kg_embeddings/tkbc_model_17dec.ckpt' #TODO: hack
+    tcomplex_file = 'models/wikidata_big/kg_embeddings/tcomplex_17dec.ckpt' #TODO: hack
     tcomplex_params = torch.load(tcomplex_file)
     complex_params = torch.load(tkbc_model_file)
     num_ent = tcomplex_params['embeddings.0.weight'].shape[0]
