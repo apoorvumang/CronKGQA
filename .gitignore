@@ -1,6 +1,7 @@
 models/*
 data/*
 tkgqa_env/*
+cronkgqa_env/*
 tkbc/models/*
 tkbc/src_data/*
 tkbc/data/*
