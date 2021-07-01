@@ -488,7 +488,7 @@ def save_model(qa_model, filename):
     print('Saved model to ', filename)
     return
 
-if 'complex' in args.tkbc_model_file: #TODO this is a hack
+if args.tkbc_model_file.startswith('complex'): #TODO this is a hack
     tkbc_model = loadTkbcModel_complex('models/{dataset_name}/kg_embeddings/{tkbc_model_file}'.format(
         dataset_name = args.dataset_name, tkbc_model_file=args.tkbc_model_file
     ))
