@@ -435,14 +435,7 @@ def train(qa_model, dataset, valid_dataset, args,result_filename=None):
         f.write('\n')
         f.close()
 
-    print("-----evaluating for epoch -1")
-    eval_score, eval_log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split,
-                                k=args.eval_k)
-    max_eval_score=None
-    save_model(qa_model, checkpoint_file_name)
-    max_eval_score = eval_score
-    print(f"max eval score unitl now epoch:{-1}, {max_eval_score}")
-    append_log_to_file(eval_log, -1, result_filename)
+    max_eval_score= 0.
 
     print('Starting training')
     for epoch in range(args.max_epochs):
@@ -563,15 +556,6 @@ else:
 qa_model = qa_model.cuda()
 
 if args.mode == 'eval':
-    # ids = [762, 13799, 22986, 26071]
-    # ids = [8284, 11017, 29251, 19412, 8016, 6103, 27292, 4471, 27207, 8580]
-    # ids = [5268,28545,16544,14908,26111,26644,7627,25743,12252,8477,4913,12267,14911,19205,13893,19457,16114,24397,3297,20309,29644,10273,23941,17160,9204,2535,3459,4571,951,27774]
-    # ids = [29898, 190, 11782, 829, 218, 12719, 1468, 3661, 1362, 1891, 998, 1068]
-    # ids = [17018, 11062, 28012, 14291, 22936, 16090, 10920, 27255, 1166, 28861] # before_after
-    # ids = [7126, 28946, 13207, 7039, 10648, 13379, 29142, 22030, 13903, 7455] # simple_time
-    # ids = [5256, 21441, 5708, 14718, 2731, 15483, 16049, 23190, 19727, 26019] # first_last
-    # ids = [0]
-    # score, log = predict_single(qa_model, valid_dataset, ids=ids, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     score, log = eval(qa_model, valid_dataset, batch_size=args.valid_batch_size, split=args.eval_split, k = args.eval_k)
     exit(0)
 
@@ -579,15 +563,7 @@ result_filename = 'results/{dataset_name}/{model_file}.log'.format(
     dataset_name=args.dataset_name,
     model_file=args.save_to
 )
-# f = open(result_filename, 'w')
 
-# log=["\n\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n"]
-# log+=["TRAIN info",dataset.get_dataset_ques_info(),"VAL info",valid_dataset.get_dataset_ques_info(),
-#       "TEST info",test_dataset.get_dataset_ques_info()]
-# append_log_to_file(log,-1,result_filename)
-# score, log = eval(qa_model, test_dataset, batch_size=args.valid_batch_size, split="test", k = args.eval_k)
-# log=["######## TEST EVALUATION IN EPOCH -1 #########"]+log
-# append_log_to_file(log,0,result_filename)
 
 train(qa_model, dataset, valid_dataset, args,result_filename=result_filename)
 
