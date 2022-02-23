@@ -1,6 +1,9 @@
 # CronKGQA
 This is the code for our ACL 2021 paper [Question Answering over Temporal Knowledge Graphs](https://arxiv.org/abs/2106.01515)
 
+**UPDATE**: There has been a small update to the CronQuestions dataset. There was an error in dataset creation that resulted in '{tail2}' being present in the question string instead of getting
+slot filled by the proper entity (https://github.com/apoorvumang/CronKGQA/issues/13). This affected 31951/410000 questions. We have uploaded a fixed version of the dataset. Although the numbers reported in the paper are based on the original version of the dataset, we encourage everyone to used the fixed version. Details of this are in the dataset download section.
+
 
 ## Installation
 
@@ -34,22 +37,14 @@ conda install --file requirements.txt -c conda-forge
 
 ## Dataset and pretrained models download
 
-Download and unzip ``data.zip`` and ``models.zip`` in the root directory.
+Download and unzip ``data_v2.zip`` and ``models.zip`` in the root directory. ``data.zip`` contains the old version without the '{tail2}' fix, please refrain from using it.
 
 Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?usp=sharing, or use ``gdown``
-<!-- 
-```
-wget https://storage.googleapis.com/cronkgqa/data.zip 
-wget https://storage.googleapis.com/cronkgqa/models.zip
-unzip -q data.zip && unzip -q models.zip
-rm data.zip && rm models.zip
-```
- -->
  
 ```
-gdown https://drive.google.com/uc\?id\=1wilPf3qohD-6156Daaz5M6GRuJiRP3P4
+gdown https://drive.google.com/uc\?id\=1fe7-x7ChszqzczKncoZcpwmWc1PBq1_0
 gdown https://drive.google.com/uc\?id\=18w_aPl-oLfWnTLnoMnTU9Pm4El1T9wkB
-unzip -q data.zip && unzip -q models.zip
+unzip -q data_v2.zip && unzip -q models.zip
 rm data.zip && rm models.zip
 ```
 
