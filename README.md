@@ -45,7 +45,7 @@ Drive: https://drive.google.com/drive/folders/15L4bpGEvCCp7Kuz6xJOFBQFzQGWKJ9rL?
 gdown https://drive.google.com/uc\?id\=1fe7-x7ChszqzczKncoZcpwmWc1PBq1_0
 gdown https://drive.google.com/uc\?id\=18w_aPl-oLfWnTLnoMnTU9Pm4El1T9wkB
 unzip -q data_v2.zip && unzip -q models.zip
-rm data.zip && rm models.zip
+rm data_v2.zip && rm models.zip
 ```
 
 ## Try out pretrained model
